@@ -214,13 +214,15 @@
             width: 90%;
             max-width: 400px;
         }
-        .modal-content input {
+        .modal-content input, .modal-content textarea {
             width: 100%;
             padding: 12px;
             margin: 10px 0;
             border: 1px solid #ddd;
             border-radius: 12px;
+            font-family: inherit;
         }
+        .modal-content textarea { resize: vertical; }
         .modal-buttons {
             display: flex;
             gap: 10px;
@@ -276,7 +278,7 @@
                 <button class="action-btn mic-btn" id="micBtn" onclick="startVoiceInput()">🎤 बोलें</button>
                 <button class="action-btn" onclick="showImageGenModal()">🎨 इमेज बनाएं</button>
                 <button class="action-btn" onclick="document.getElementById('imageUpload').click()">📷 फोटो विश्लेषण</button>
-                <input type="file" id="imageUpload" accept="image/*" style="display:none" onchange="analyzeImage(this.files[0])">
+                <input type="file" id="imageUpload" accept="image/*" style="display:none" onchange="prepareImageAnalysis(this.files[0])">
             </div>
         </div>
 
@@ -308,6 +310,19 @@
         </div>
     </div>
 
+    <!-- Image Analysis Prompt Modal -->
+    <div class="modal" id="analysisPromptModal">
+        <div class="modal-content">
+            <h3>📷 फोटो विश्लेषण</h3>
+            <p style="margin-bottom: 10px; color: #666;">इस फोटो के बारे में क्या जानना चाहते हैं?</p>
+            <textarea id="analysisPrompt" rows="3" placeholder="उदाहरण: इस फोटो में क्या है? यह कहाँ की तस्वीर लगती है? इसमें कितने लोग हैं?"></textarea>
+            <div class="modal-buttons">
+                <button onclick="submitImageAnalysis()" style="background: #667eea; color: white;">विश्लेषण करें</button>
+                <button onclick="closeAnalysisModal()">रद्द करें</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // ========== CONFIGURATION ==========
         const API_URL = 'https://sahchar-ai-backend.onrender.com';
@@ -317,6 +332,7 @@
         let autoSpeak = true;
         let speechSynthesis = window.speechSynthesis;
         let currentUtterance = null;
+        let pendingImageFile = null;
 
         // DOM Elements
         const messagesDiv = document.getElementById('messages');
@@ -327,24 +343,21 @@
         function speakText(text) {
             if (!autoSpeak && !window.speakingNow) return;
             
-            // Stop any ongoing speech
             if (currentUtterance) {
                 speechSynthesis.cancel();
             }
             
-            // Clean text for better speech
             let cleanText = text.replace(/[^\u0900-\u097F\sa-zA-Z0-9,।?.!]/g, '');
             cleanText = cleanText.replace(/\*/g, '');
             
             if (cleanText.length === 0) return;
             
             currentUtterance = new SpeechSynthesisUtterance(cleanText);
-            currentUtterance.lang = 'hi-IN';  // Hindi language
-            currentUtterance.rate = 0.9;      // Slightly slow for clarity
+            currentUtterance.lang = 'hi-IN';
+            currentUtterance.rate = 0.9;
             currentUtterance.pitch = 1.0;
             currentUtterance.volume = 1.0;
             
-            // Try to find Hindi voice
             speechSynthesis.onvoiceschanged = () => {
                 const voices = speechSynthesis.getVoices();
                 const hindiVoice = voices.find(v => v.lang === 'hi-IN' || v.lang.startsWith('hi'));
@@ -352,7 +365,6 @@
                 speechSynthesis.speak(currentUtterance);
             };
             
-            // If voices already loaded
             const voices = speechSynthesis.getVoices();
             const hindiVoice = voices.find(v => v.lang === 'hi-IN' || v.lang.startsWith('hi'));
             if (hindiVoice) currentUtterance.voice = hindiVoice;
@@ -369,15 +381,14 @@
             autoSpeak = !autoSpeak;
             const btn = document.getElementById('globalSpeaker');
             btn.innerHTML = autoSpeak ? '🔊' : '🔇';
-            btn.title = autoSpeak ? 'ऑटो बोलें बंद करें' : 'ऑटो बोलें चालू करें';
         }
         
-        function speakSpecificMessage(text, element) {
+        function speakSpecificMessage(text) {
             window.speakingNow = true;
             speakText(text);
         }
 
-        // ========== VOICE INPUT (Speech Recognition) ==========
+        // ========== VOICE INPUT ==========
         let recognition = null;
         if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -395,7 +406,6 @@
             };
             
             recognition.onerror = (event) => {
-                console.log('Speech recognition error:', event.error);
                 document.getElementById('micBtn').innerHTML = '🎤 बोलें';
                 document.getElementById('micBtn').style.background = '';
                 if (event.error !== 'no-speech') {
@@ -442,7 +452,6 @@
                 msgDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
                 msgDiv.textContent = text;
                 
-                // Add speaker icon for bot messages
                 if (!isUser) {
                     const speakerIcon = document.createElement('span');
                     speakerIcon.className = 'speak-icon';
@@ -450,11 +459,10 @@
                     speakerIcon.title = 'बोलकर सुनें';
                     speakerIcon.onclick = (e) => {
                         e.stopPropagation();
-                        speakSpecificMessage(text, msgDiv);
+                        speakSpecificMessage(text);
                     };
                     msgDiv.appendChild(speakerIcon);
                     
-                    // Auto-speak if enabled
                     if (autoSpeak) {
                         speakText(text);
                     }
@@ -462,6 +470,56 @@
             }
             messagesDiv.appendChild(msgDiv);
             scrollToBottom();
+        }
+
+        // ========== IMAGE ANALYSIS WITH PROMPT ==========
+        function prepareImageAnalysis(file) {
+            if (!file) return;
+            pendingImageFile = file;
+            // Clear previous prompt
+            document.getElementById('analysisPrompt').value = '';
+            // Show modal to get user's question
+            document.getElementById('analysisPromptModal').style.display = 'flex';
+        }
+        
+        function closeAnalysisModal() {
+            document.getElementById('analysisPromptModal').style.display = 'none';
+            pendingImageFile = null;
+        }
+        
+        async function submitImageAnalysis() {
+            const prompt = document.getElementById('analysisPrompt').value.trim();
+            const defaultPrompt = "इस फोटो के बारे में विस्तार से बताएं";
+            const finalPrompt = prompt.length > 0 ? prompt : defaultPrompt;
+            
+            closeAnalysisModal();
+            
+            if (!pendingImageFile) return;
+            
+            // Show user message with photo and prompt
+            addMessage(`📷 [फोटो अपलोड हुआ]\nप्रश्न: ${finalPrompt}`, true);
+            showTyping(true);
+            
+            const formData = new FormData();
+            formData.append('image', pendingImageFile);
+            formData.append('message', finalPrompt);
+            formData.append('bot', currentBot);
+            
+            try {
+                const response = await fetch(API_URL + '/api/analyze-image', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                showTyping(false);
+                const analysis = data.analysis || '✅ फोटो विश्लेषण पूरा हुआ!';
+                addMessage(analysis, false);
+            } catch (error) {
+                showTyping(false);
+                addMessage('❌ फोटो विश्लेषण में समस्या आई। कृपया पुनः प्रयास करें। 🙏', false);
+            }
+            
+            pendingImageFile = null;
         }
 
         // ========== CHAT MESSAGE ==========
@@ -521,31 +579,6 @@
                 addMessage('❌ Error: ' + error.message, false);
             }
             document.getElementById('imagePrompt').value = '';
-        }
-
-        // ========== IMAGE ANALYSIS ==========
-        async function analyzeImage(file) {
-            if (!file) return;
-            addMessage('📷 [फोटो अपलोड हुआ]', true);
-            showTyping(true);
-            
-            const formData = new FormData();
-            formData.append('image', file);
-            formData.append('message', 'इस फोटो के बारे में बताएं');
-            
-            try {
-                const response = await fetch(API_URL + '/api/analyze-image', {
-                    method: 'POST',
-                    body: formData
-                });
-                const data = await response.json();
-                showTyping(false);
-                const analysis = data.analysis || '✅ फोटो विश्लेषण पूरा हुआ!';
-                addMessage(analysis, false);
-            } catch (error) {
-                showTyping(false);
-                addMessage('❌ फोटो विश्लेषण में समस्या आई।', false);
-            }
         }
 
         // ========== BOT SWITCHING ==========
