@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SahcharAI - Web Assistant</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .chat-container {
+            width: 100%;
+            max-width: 800px;
+            height: 90vh;
+            background: white;
+            border-radius: 32px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .chat-header {
+            background: #4a148c;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .chat-header h1 { font-size: 1.5rem; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .chat-header p { font-size: 0.8rem; opacity: 0.9; margin-top: 5px; }
+        .messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; background: #f5f5f5; }
+        .message { max-width: 80%; padding: 12px 16px; border-radius: 20px; line-height: 1.4; word-wrap: break-word; }
+        .user-message { background: #667eea; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
+        .bot-message { background: white; color: #333; align-self: flex-start; border-bottom-left-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .typing-indicator { background: white; padding: 12px 16px; border-radius: 20px; align-self: flex-start; display: none; gap: 4px; }
+        .typing-indicator span { width: 8px; height: 8px; background: #999; border-radius: 50%; display: inline-block; animation: bounce 1.4s infinite ease-in-out; }
+        .typing-indicator span:nth-child(1) { animation-delay: 0s; }
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-10px); } }
+        .input-area { display: flex; padding: 16px; background: white; border-top: 1px solid #e0e0e0; gap: 10px; }
+        .input-area input { flex: 1; padding: 12px 16px; border: 1px solid #ddd; border-radius: 28px; font-size: 1rem; outline: none; }
+        .input-area input:focus { border-color: #667eea; }
+        .input-area button { background: #667eea; color: white; border: none; padding: 12px 24px; border-radius: 28px; font-size: 1rem; cursor: pointer; transition: background 0.2s; }
+        .input-area button:hover { background: #5a67d8; }
+        .footer { text-align: center; padding: 10px; font-size: 0.7rem; color: #888; background: white; border-top: 1px solid #eee; }
+        @media (max-width: 600px) { .message { max-width: 90%; } .input-area button { padding: 12px 16px; } }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h1>🤖 SahcharAI</h1>
+            <p>आपका स्मार्ट वॉयस असिस्टेंट – अब वेब पर भी</p>
+        </div>
+        <div class="messages" id="messages">
+            <div class="message bot-message">नमस्ते! मैं SahcharAI हूँ। आपकी कैसे मदद कर सकता हूँ? 🙏</div>
+        </div>
+        <div class="typing-indicator" id="typing"><span></span><span></span><span></span></div>
+        <div class="input-area">
+            <input type="text" id="userInput" placeholder="अपना सवाल लिखें..." onkeypress="handleKeyPress(event)">
+            <button onclick="sendMessage()">भेजें ➤</button>
+        </div>
+        <div class="footer">राम प्रकाश कुमार द्वारा निर्मित | बैकएंड: सहचर AI v3.3</div>
+    </div>
+
+    <script>
+        // ✅ Render Backend URL - यही सही है
+        const API_URL = 'https://sahchar-ai-backend.onrender.com/chat';
+        const sessionId = localStorage.getItem('session_id') || crypto.randomUUID();
+        localStorage.setItem('session_id', sessionId);
+
+        const messagesDiv = document.getElementById('messages');
+        const userInput = document.getElementById('userInput');
+        const typingDiv = document.getElementById('typing');
+
+        function scrollToBottom() { const container = document.getElementById('messages'); container.scrollTop = container.scrollHeight; }
+        function showTyping(show) { typingDiv.style.display = show ? 'flex' : 'none'; scrollToBottom(); }
+        function addMessage(text, isUser) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+            msgDiv.textContent = text;
+            messagesDiv.appendChild(msgDiv);
+            scrollToBottom();
+        }
+        async function sendMessage() {
+            const text = userInput.value.trim();
+            if (!text) return;
+            addMessage(text, true);
+            userInput.value = '';
+            showTyping(true);
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Session-Id': sessionId },
+                    body: JSON.stringify({ message: text, sessionId: sessionId })
+                });
+                const data = await response.json();
+                showTyping(false);
+                const botReply = data.reply || data.message || "क्षमा करें, मैं उत्तर नहीं दे पाया। 🙏";
+                addMessage(botReply, false);
+            } catch (error) {
+                showTyping(false);
+                addMessage("❌ नेटवर्क त्रुटि! कृपया पुनः प्रयास करें। 🙏", false);
+            }
+        }
+        function handleKeyPress(event) { if (event.key === 'Enter') sendMessage(); }
+    </script>
+</body>
+</html>
