@@ -33,7 +33,6 @@
             overflow: hidden;
         }
 
-        /* Header */
         .chat-header {
             background: #4a148c;
             color: white;
@@ -75,7 +74,6 @@
         }
         .speaker-btn:hover { background: rgba(255,255,255,0.3); }
 
-        /* Messages Area */
         .messages {
             flex: 1;
             overflow-y: auto;
@@ -146,7 +144,6 @@
         }
         @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-10px); } }
 
-        /* Input Area */
         .input-area {
             display: flex;
             padding: 12px;
@@ -200,8 +197,16 @@
             color: white;
         }
         .mic-btn:hover { background: #6a1b9a; }
+        .mic-btn.listening {
+            background: #4caf50;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
 
-        /* Modal for image preview (optional) */
         .modal {
             display: none;
             position: fixed;
@@ -276,7 +281,7 @@
 
         <div class="input-area">
             <div class="input-row">
-                <input type="text" id="userInput" placeholder="अपना सवाल लिखें या बोलें..." onkeypress="handleKeyPress(event)">
+                <input type="text" id="userInput" placeholder="अपना सवाल लिखें..." onkeypress="handleKeyPress(event)">
                 <button class="btn-send" onclick="sendMessage()">भेजें</button>
             </div>
             <div class="action-buttons">
@@ -321,19 +326,29 @@
         let currentBot = 'SahcharAI';
         let sessionId = localStorage.getItem('session_id') || crypto.randomUUID();
         localStorage.setItem('session_id', sessionId);
-        let autoSpeak = true;
+        let autoSpeak = false;  // ✅ Default OFF to prevent loop
         let speechSynthesis = window.speechSynthesis;
         let currentUtterance = null;
         let pendingImageFile = null;
+        let isRecognizing = false;  // ✅ Track recognition state
+        let lastSpokenMessage = null;  // ✅ Track last spoken message to prevent repeat
+        let lastSpeakTime = 0;  // ✅ Debounce for TTS
 
         // DOM Elements
         const messagesDiv = document.getElementById('messages');
         const userInput = document.getElementById('userInput');
         const typingDiv = document.getElementById('typing');
 
-        // ========== TEXT TO SPEECH ==========
+        // ========== TEXT TO SPEECH (with debounce) ==========
         function speakText(text) {
-            if (!autoSpeak && !window.speakingNow) return;
+            if (!autoSpeak) return;
+            
+            // ✅ Prevent speaking same message repeatedly
+            const now = Date.now();
+            if (lastSpokenMessage === text && (now - lastSpeakTime) < 3000) {
+                console.log('Skipping duplicate speech');
+                return;
+            }
             
             if (currentUtterance) {
                 speechSynthesis.cancel();
@@ -341,6 +356,7 @@
             
             let cleanText = text.replace(/[^\u0900-\u097F\sa-zA-Z0-9,।?.!]/g, '');
             cleanText = cleanText.replace(/\*/g, '');
+            cleanText = cleanText.substring(0, 500);  // Limit length
             
             if (cleanText.length === 0) return;
             
@@ -350,22 +366,17 @@
             currentUtterance.pitch = 1.0;
             currentUtterance.volume = 1.0;
             
-            speechSynthesis.onvoiceschanged = () => {
-                const voices = speechSynthesis.getVoices();
-                const hindiVoice = voices.find(v => v.lang === 'hi-IN' || v.lang.startsWith('hi'));
-                if (hindiVoice) currentUtterance.voice = hindiVoice;
-                speechSynthesis.speak(currentUtterance);
-            };
-            
             const voices = speechSynthesis.getVoices();
             const hindiVoice = voices.find(v => v.lang === 'hi-IN' || v.lang.startsWith('hi'));
             if (hindiVoice) currentUtterance.voice = hindiVoice;
+            
+            lastSpokenMessage = text;
+            lastSpeakTime = now;
             
             speechSynthesis.speak(currentUtterance);
             
             currentUtterance.onend = () => {
                 currentUtterance = null;
-                window.speakingNow = false;
             };
         }
         
@@ -373,14 +384,22 @@
             autoSpeak = !autoSpeak;
             const btn = document.getElementById('globalSpeaker');
             btn.innerHTML = autoSpeak ? '🔊' : '🔇';
+            btn.title = autoSpeak ? 'ऑटो बोलें बंद करें' : 'ऑटो बोलें चालू करें';
+            if (!autoSpeak && currentUtterance) {
+                speechSynthesis.cancel();
+                currentUtterance = null;
+            }
         }
         
         function speakSpecificMessage(text) {
-            window.speakingNow = true;
+            // Manual speak - always works even if autoSpeak is off
+            const oldAutoSpeak = autoSpeak;
+            autoSpeak = true;
             speakText(text);
+            autoSpeak = oldAutoSpeak;
         }
 
-        // ========== VOICE INPUT ==========
+        // ========== VOICE INPUT (Fixed - No duplicate capture) ==========
         let recognition = null;
         if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -388,40 +407,64 @@
             recognition.lang = 'hi-IN';
             recognition.continuous = false;
             recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+            
+            recognition.onstart = () => {
+                isRecognizing = true;
+                const micBtn = document.getElementById('micBtn');
+                micBtn.innerHTML = '🎤 सुन रहा हूँ...';
+                micBtn.classList.add('listening');
+            };
             
             recognition.onresult = (event) => {
                 const transcript = event.results[0][0].transcript;
-                userInput.value = transcript;
-                sendMessage();
-                document.getElementById('micBtn').innerHTML = '🎤 बोलें';
-                document.getElementById('micBtn').style.background = '';
+                if (transcript && transcript.trim().length > 0) {
+                    userInput.value = transcript;
+                    // Auto send after voice input
+                    setTimeout(() => sendMessage(), 100);
+                }
+                isRecognizing = false;
+                const micBtn = document.getElementById('micBtn');
+                micBtn.innerHTML = '🎤 बोलें';
+                micBtn.classList.remove('listening');
             };
             
             recognition.onerror = (event) => {
-                document.getElementById('micBtn').innerHTML = '🎤 बोलें';
-                document.getElementById('micBtn').style.background = '';
-                if (event.error !== 'no-speech') {
+                console.log('Speech recognition error:', event.error);
+                isRecognizing = false;
+                const micBtn = document.getElementById('micBtn');
+                micBtn.innerHTML = '🎤 बोलें';
+                micBtn.classList.remove('listening');
+                if (event.error !== 'no-speech' && event.error !== 'aborted') {
                     alert('बोलते समय त्रुटि। कृपया फिर से प्रयास करें।');
                 }
             };
             
             recognition.onend = () => {
-                document.getElementById('micBtn').innerHTML = '🎤 बोलें';
-                document.getElementById('micBtn').style.background = '';
+                isRecognizing = false;
+                const micBtn = document.getElementById('micBtn');
+                micBtn.innerHTML = '🎤 बोलें';
+                micBtn.classList.remove('listening');
             };
         }
         
         function startVoiceInput() {
+            if (isRecognizing) {
+                // Already listening, stop and restart
+                recognition.stop();
+                setTimeout(() => recognition.start(), 200);
+                return;
+            }
             if (!recognition) {
                 alert('आपका ब्राउज़र वॉयस इनपुट सपोर्ट नहीं करता। Chrome का उपयोग करें।');
                 return;
             }
             try {
+                // Clear input first
+                userInput.value = '';
                 recognition.start();
-                document.getElementById('micBtn').innerHTML = '🎤 सुन रहा हूँ...';
-                document.getElementById('micBtn').style.background = '#4caf50';
             } catch (e) {
-                console.log('Recognition already started');
+                console.log('Recognition error:', e);
             }
         }
 
@@ -478,26 +521,23 @@
             scrollToBottom();
         }
 
-        // ========== IMAGE ANALYSIS (Without Separate Dialog) ==========
+        // ========== IMAGE ANALYSIS ==========
         function selectImageForAnalysis() {
             const fileInput = document.getElementById('imageUpload');
             fileInput.onchange = function(e) {
                 const file = e.target.files[0];
                 if (file) {
                     pendingImageFile = file;
-                    // Show image preview in chat
                     const reader = new FileReader();
                     reader.onload = function(event) {
                         addMessage('📷 फोटो चयनित:', true, false, null, true, event.target.result);
-                        // Focus on input box for user to type question
                         userInput.focus();
                         userInput.placeholder = "इस फोटो के बारे में क्या जानना चाहते हैं? लिखें...";
-                        // Add hint message
                         addMessage('✅ फोटो अपलोड हो गई। अब नीचे लिखकर भेजें कि इस फोटो के बारे में क्या जानना चाहते हैं? 🙏', false);
                     };
                     reader.readAsDataURL(file);
                 }
-                fileInput.value = ''; // Reset so same file can be selected again
+                fileInput.value = '';
             };
             fileInput.click();
         }
@@ -511,7 +551,6 @@
                 return false;
             }
             
-            // Add user's question to chat
             addMessage(userQuestion, true);
             userInput.value = '';
             showTyping(true);
@@ -531,7 +570,7 @@
                 const analysis = data.analysis || '✅ फोटो विश्लेषण पूरा हुआ!';
                 addMessage(analysis, false);
                 pendingImageFile = null;
-                userInput.placeholder = "अपना सवाल लिखें या बोलें...";
+                userInput.placeholder = "अपना सवाल लिखें...";
                 return true;
             } catch (error) {
                 showTyping(false);
@@ -542,7 +581,6 @@
 
         // ========== CHAT MESSAGE ==========
         async function sendMessage() {
-            // If there's a pending image, send for analysis first
             if (pendingImageFile) {
                 await sendImageForAnalysis();
                 return;
@@ -550,6 +588,7 @@
             
             const text = userInput.value.trim();
             if (!text) return;
+            
             addMessage(text, true);
             userInput.value = '';
             showTyping(true);
