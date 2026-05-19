@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>SahcharAI - Web Assistant with Voice</title>
+    <title>SahcharAI - Fast Web Assistant</title>
     <style>
+        /* ... same CSS as before ... */
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-
         body {
             font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -20,7 +20,6 @@
             align-items: center;
             padding: 20px;
         }
-
         .app-container {
             width: 100%;
             max-width: 500px;
@@ -32,7 +31,6 @@
             flex-direction: column;
             overflow: hidden;
         }
-
         .chat-header {
             background: #4a148c;
             color: white;
@@ -43,11 +41,7 @@
             flex-wrap: wrap;
             gap: 10px;
         }
-        .header-title {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
+        .header-title { display: flex; align-items: center; gap: 10px; }
         .header-title h1 { font-size: 1.3rem; }
         .header-title p { font-size: 0.7rem; opacity: 0.9; }
         .bot-selector {
@@ -73,7 +67,6 @@
             justify-content: center;
         }
         .speaker-btn:hover { background: rgba(255,255,255,0.3); }
-
         .messages {
             flex: 1;
             overflow-y: auto;
@@ -114,18 +107,8 @@
             transition: opacity 0.2s;
         }
         .speak-icon:hover { opacity: 1; }
-        .image-message {
-            max-width: 200px;
-            border-radius: 12px;
-            cursor: pointer;
-        }
-        .image-preview {
-            max-width: 150px;
-            max-height: 150px;
-            border-radius: 12px;
-            margin-top: 8px;
-            cursor: pointer;
-        }
+        .image-message { max-width: 200px; border-radius: 12px; cursor: pointer; }
+        .image-preview { max-width: 150px; max-height: 150px; border-radius: 12px; margin-top: 8px; cursor: pointer; }
         .typing-indicator {
             background: white;
             padding: 12px 16px;
@@ -143,7 +126,6 @@
             animation: bounce 1.4s infinite ease-in-out;
         }
         @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-10px); } }
-
         .input-area {
             display: flex;
             padding: 12px;
@@ -152,11 +134,7 @@
             gap: 8px;
             flex-wrap: wrap;
         }
-        .input-row {
-            display: flex;
-            width: 100%;
-            gap: 8px;
-        }
+        .input-row { display: flex; width: 100%; gap: 8px; }
         .input-row input {
             flex: 1;
             padding: 12px 16px;
@@ -174,12 +152,7 @@
             border-radius: 28px;
             cursor: pointer;
         }
-        .action-buttons {
-            display: flex;
-            gap: 8px;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
+        .action-buttons { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
         .action-btn {
             background: #f0f0f0;
             border: none;
@@ -192,10 +165,7 @@
             gap: 5px;
         }
         .action-btn:hover { background: #e0e0e0; }
-        .mic-btn {
-            background: #4a148c;
-            color: white;
-        }
+        .mic-btn { background: #4a148c; color: white; }
         .mic-btn:hover { background: #6a1b9a; }
         .mic-btn.listening {
             background: #4caf50;
@@ -206,7 +176,6 @@
             50% { transform: scale(1.05); }
             100% { transform: scale(1); }
         }
-
         .modal {
             display: none;
             position: fixed;
@@ -233,11 +202,7 @@
             border: 1px solid #ddd;
             border-radius: 12px;
         }
-        .modal-buttons {
-            display: flex;
-            gap: 10px;
-            justify-content: flex-end;
-        }
+        .modal-buttons { display: flex; gap: 10px; justify-content: flex-end; }
         .modal-buttons button {
             padding: 8px 16px;
             border: none;
@@ -326,80 +291,115 @@
         let currentBot = 'SahcharAI';
         let sessionId = localStorage.getItem('session_id') || crypto.randomUUID();
         localStorage.setItem('session_id', sessionId);
-        let autoSpeak = false;  // ✅ Default OFF to prevent loop
+        let autoSpeak = false;
         let speechSynthesis = window.speechSynthesis;
         let currentUtterance = null;
         let pendingImageFile = null;
-        let isRecognizing = false;  // ✅ Track recognition state
-        let lastSpokenMessage = null;  // ✅ Track last spoken message to prevent repeat
-        let lastSpeakTime = 0;  // ✅ Debounce for TTS
+        let isRecognizing = false;
+        let lastSpokenMessage = null;
+        let lastSpeakTime = 0;
+        let isSpeaking = false;
+        let speechQueue = [];
+
+        // Preload Hindi voice
+        let preloadedVoice = null;
+        function preloadHindiVoice() {
+            const voices = speechSynthesis.getVoices();
+            preloadedVoice = voices.find(v => v.lang === 'hi-IN' || v.lang.startsWith('hi'));
+            if (preloadedVoice) {
+                console.log('✅ Hindi voice preloaded:', preloadedVoice.name);
+            } else {
+                setTimeout(preloadHindiVoice, 200);
+            }
+        }
+        if (speechSynthesis.getVoices().length > 0) {
+            preloadHindiVoice();
+        } else {
+            speechSynthesis.onvoiceschanged = preloadHindiVoice;
+        }
 
         // DOM Elements
         const messagesDiv = document.getElementById('messages');
         const userInput = document.getElementById('userInput');
         const typingDiv = document.getElementById('typing');
 
-        // ========== TEXT TO SPEECH (with debounce) ==========
+        // ========== FAST TEXT TO SPEECH (No delay) ==========
         function speakText(text) {
             if (!autoSpeak) return;
             
-            // ✅ Prevent speaking same message repeatedly
-            const now = Date.now();
-            if (lastSpokenMessage === text && (now - lastSpeakTime) < 3000) {
-                console.log('Skipping duplicate speech');
-                return;
-            }
-            
+            // Cancel any ongoing speech immediately
             if (currentUtterance) {
                 speechSynthesis.cancel();
+                currentUtterance = null;
             }
             
             let cleanText = text.replace(/[^\u0900-\u097F\sa-zA-Z0-9,।?.!]/g, '');
             cleanText = cleanText.replace(/\*/g, '');
-            cleanText = cleanText.substring(0, 500);  // Limit length
+            cleanText = cleanText.substring(0, 300);
             
             if (cleanText.length === 0) return;
             
             currentUtterance = new SpeechSynthesisUtterance(cleanText);
             currentUtterance.lang = 'hi-IN';
-            currentUtterance.rate = 0.9;
+            currentUtterance.rate = 0.95;
             currentUtterance.pitch = 1.0;
             currentUtterance.volume = 1.0;
             
-            const voices = speechSynthesis.getVoices();
-            const hindiVoice = voices.find(v => v.lang === 'hi-IN' || v.lang.startsWith('hi'));
-            if (hindiVoice) currentUtterance.voice = hindiVoice;
+            // Use preloaded voice for instant response
+            if (preloadedVoice) {
+                currentUtterance.voice = preloadedVoice;
+            } else {
+                const voices = speechSynthesis.getVoices();
+                const hindiVoice = voices.find(v => v.lang === 'hi-IN' || v.lang.startsWith('hi'));
+                if (hindiVoice) currentUtterance.voice = hindiVoice;
+            }
             
-            lastSpokenMessage = text;
-            lastSpeakTime = now;
-            
-            speechSynthesis.speak(currentUtterance);
+            lastSpokenMessage = cleanText;
+            lastSpeakTime = Date.now();
             
             currentUtterance.onend = () => {
                 currentUtterance = null;
+                isSpeaking = false;
+                // Process next in queue
+                if (speechQueue.length > 0) {
+                    const next = speechQueue.shift();
+                    setTimeout(() => speakText(next), 50);
+                }
             };
+            
+            currentUtterance.onerror = () => {
+                currentUtterance = null;
+                isSpeaking = false;
+            };
+            
+            isSpeaking = true;
+            speechSynthesis.speak(currentUtterance);
         }
         
         function toggleAutoSpeak() {
             autoSpeak = !autoSpeak;
             const btn = document.getElementById('globalSpeaker');
             btn.innerHTML = autoSpeak ? '🔊' : '🔇';
-            btn.title = autoSpeak ? 'ऑटो बोलें बंद करें' : 'ऑटो बोलें चालू करें';
             if (!autoSpeak && currentUtterance) {
                 speechSynthesis.cancel();
                 currentUtterance = null;
+                isSpeaking = false;
+                speechQueue = [];
             }
         }
         
         function speakSpecificMessage(text) {
-            // Manual speak - always works even if autoSpeak is off
+            if (currentUtterance) {
+                speechSynthesis.cancel();
+                currentUtterance = null;
+            }
             const oldAutoSpeak = autoSpeak;
             autoSpeak = true;
             speakText(text);
             autoSpeak = oldAutoSpeak;
         }
 
-        // ========== VOICE INPUT (Fixed - No duplicate capture) ==========
+        // ========== VOICE INPUT ==========
         let recognition = null;
         if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -420,51 +420,42 @@
                 const transcript = event.results[0][0].transcript;
                 if (transcript && transcript.trim().length > 0) {
                     userInput.value = transcript;
-                    // Auto send after voice input
-                    setTimeout(() => sendMessage(), 100);
+                    sendMessage();
                 }
-                isRecognizing = false;
-                const micBtn = document.getElementById('micBtn');
-                micBtn.innerHTML = '🎤 बोलें';
-                micBtn.classList.remove('listening');
+                recognition.stop();
             };
             
             recognition.onerror = (event) => {
-                console.log('Speech recognition error:', event.error);
-                isRecognizing = false;
+                console.log('Speech error:', event.error);
                 const micBtn = document.getElementById('micBtn');
                 micBtn.innerHTML = '🎤 बोलें';
                 micBtn.classList.remove('listening');
-                if (event.error !== 'no-speech' && event.error !== 'aborted') {
-                    alert('बोलते समय त्रुटि। कृपया फिर से प्रयास करें।');
-                }
+                isRecognizing = false;
             };
             
             recognition.onend = () => {
-                isRecognizing = false;
                 const micBtn = document.getElementById('micBtn');
                 micBtn.innerHTML = '🎤 बोलें';
                 micBtn.classList.remove('listening');
+                isRecognizing = false;
             };
         }
         
         function startVoiceInput() {
+            if (!recognition) {
+                alert('Chrome browser use करें।');
+                return;
+            }
             if (isRecognizing) {
-                // Already listening, stop and restart
                 recognition.stop();
                 setTimeout(() => recognition.start(), 200);
                 return;
             }
-            if (!recognition) {
-                alert('आपका ब्राउज़र वॉयस इनपुट सपोर्ट नहीं करता। Chrome का उपयोग करें।');
-                return;
-            }
             try {
-                // Clear input first
                 userInput.value = '';
                 recognition.start();
             } catch (e) {
-                console.log('Recognition error:', e);
+                console.log(e);
             }
         }
 
@@ -488,7 +479,6 @@
                 const img = document.createElement('img');
                 img.src = previewData;
                 img.className = 'image-preview';
-                img.title = 'क्लिक करें बड़ा करें';
                 img.onclick = () => window.open(previewData, '_blank');
                 msgDiv.appendChild(img);
                 const caption = document.createElement('div');
@@ -513,7 +503,8 @@
                     msgDiv.appendChild(speakerIcon);
                     
                     if (autoSpeak) {
-                        speakText(text);
+                        // Slight delay to ensure DOM is ready
+                        setTimeout(() => speakText(text), 50);
                     }
                 }
             }
@@ -533,7 +524,7 @@
                         addMessage('📷 फोटो चयनित:', true, false, null, true, event.target.result);
                         userInput.focus();
                         userInput.placeholder = "इस फोटो के बारे में क्या जानना चाहते हैं? लिखें...";
-                        addMessage('✅ फोटो अपलोड हो गई। अब नीचे लिखकर भेजें कि इस फोटो के बारे में क्या जानना चाहते हैं? 🙏', false);
+                        addMessage('✅ फोटो अपलोड हो गई। अब लिखकर भेजें।', false);
                     };
                     reader.readAsDataURL(file);
                 }
@@ -544,13 +535,11 @@
         
         async function sendImageForAnalysis() {
             if (!pendingImageFile) return false;
-            
             const userQuestion = userInput.value.trim();
             if (!userQuestion) {
-                addMessage('❌ कृपया फोटो के बारे में अपना सवाल लिखें।', false);
+                addMessage('❌ कृपया सवाल लिखें।', false);
                 return false;
             }
-            
             addMessage(userQuestion, true);
             userInput.value = '';
             showTyping(true);
@@ -567,14 +556,14 @@
                 });
                 const data = await response.json();
                 showTyping(false);
-                const analysis = data.analysis || '✅ फोटो विश्लेषण पूरा हुआ!';
+                const analysis = data.analysis || '✅ विश्लेषण पूरा हुआ!';
                 addMessage(analysis, false);
                 pendingImageFile = null;
                 userInput.placeholder = "अपना सवाल लिखें...";
                 return true;
             } catch (error) {
                 showTyping(false);
-                addMessage('❌ फोटो विश्लेषण में समस्या आई। कृपया पुनः प्रयास करें। 🙏', false);
+                addMessage('❌ त्रुटि। पुनः प्रयास करें।', false);
                 return false;
             }
         }
@@ -585,10 +574,8 @@
                 await sendImageForAnalysis();
                 return;
             }
-            
             const text = userInput.value.trim();
             if (!text) return;
-            
             addMessage(text, true);
             userInput.value = '';
             showTyping(true);
@@ -603,18 +590,16 @@
                 });
                 const data = await response.json();
                 showTyping(false);
-                const reply = data.reply || data.message || "क्षमा करें, मैं उत्तर नहीं दे पाया। 🙏";
+                const reply = data.reply || data.message || "क्षमा करें, उत्तर नहीं मिला। 🙏";
                 addMessage(reply, false);
             } catch (error) {
                 showTyping(false);
-                addMessage("❌ नेटवर्क त्रुटि! कृपया पुनः प्रयास करें। 🙏", false);
+                addMessage("❌ नेटवर्क त्रुटि! पुनः प्रयास करें। 🙏", false);
             }
         }
         
         function handleKeyPress(event) {
-            if (event.key === 'Enter') {
-                sendMessage();
-            }
+            if (event.key === 'Enter') sendMessage();
         }
 
         // ========== IMAGE GENERATION ==========
@@ -623,7 +608,7 @@
         
         async function generateImage() {
             const prompt = document.getElementById('imagePrompt').value.trim();
-            if (!prompt) { alert('कृपया प्रॉम्प्ट लिखें'); return; }
+            if (!prompt) { alert('प्रॉम्प्ट लिखें'); return; }
             closeImageModal();
             addMessage(`🎨 ${prompt}`, true);
             showTyping(true);
@@ -637,10 +622,10 @@
                 const data = await response.json();
                 showTyping(false);
                 if (data.imageUrl) {
-                    addMessage('ये रही आपकी इमेज:', false);
+                    addMessage('ये रही इमेज:', false);
                     addMessage('', false, true, data.imageUrl);
                 } else {
-                    addMessage('❌ इमेज बनाने में समस्या आई।', false);
+                    addMessage('❌ इमेज नहीं बन पाई।', false);
                 }
             } catch (error) {
                 showTyping(false);
@@ -660,7 +645,7 @@
             else if (botName === 'SahcharAssistant') botSelector.innerHTML = '👨‍💼 SahcharAssistant ▼';
             else botSelector.innerHTML = '⭐ SuperSahchar ▼';
             closeBotModal();
-            addMessage(`नमस्ते! मैं ${botName} हूँ। आपकी सेवा में हमेशा तत्पर। 🙏`, false);
+            addMessage(`नमस्ते! मैं ${botName} हूँ। 🙏`, false);
         }
         
         document.getElementById('botSelector').onclick = showBotSelector;
