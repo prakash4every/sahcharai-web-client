@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>SahcharAI - Web Assistant</title>
+    <title>SahcharAI - Web Assistant with Voice</title>
     <style>
         * {
             margin: 0;
@@ -61,6 +61,19 @@
             align-items: center;
             gap: 5px;
         }
+        .speaker-btn {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .speaker-btn:hover { background: rgba(255,255,255,0.3); }
 
         /* Messages Area */
         .messages {
@@ -78,6 +91,7 @@
             border-radius: 20px;
             line-height: 1.4;
             word-wrap: break-word;
+            position: relative;
         }
         .user-message {
             background: #667eea;
@@ -92,6 +106,16 @@
             border-bottom-left-radius: 4px;
             box-shadow: 0 1px 2px rgba(0,0,0,0.1);
         }
+        .speak-icon {
+            position: absolute;
+            bottom: 4px;
+            right: 8px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            opacity: 0.5;
+            transition: opacity 0.2s;
+        }
+        .speak-icon:hover { opacity: 1; }
         .image-message {
             max-width: 200px;
             border-radius: 12px;
@@ -150,6 +174,7 @@
             display: flex;
             gap: 8px;
             justify-content: center;
+            flex-wrap: wrap;
         }
         .action-btn {
             background: #f0f0f0;
@@ -163,8 +188,13 @@
             gap: 5px;
         }
         .action-btn:hover { background: #e0e0e0; }
+        .mic-btn {
+            background: #4a148c;
+            color: white;
+        }
+        .mic-btn:hover { background: #6a1b9a; }
 
-        /* Modal for Image Generation */
+        /* Modal */
         .modal {
             display: none;
             position: fixed;
@@ -223,8 +253,11 @@
                 <h1>🤖 SahcharAI</h1>
                 <p>वेब असिस्टेंट</p>
             </div>
-            <div class="bot-selector" id="botSelector">
-                <span>🤖</span> SahcharAI <span>▼</span>
+            <div style="display: flex; gap: 10px;">
+                <button class="speaker-btn" id="globalSpeaker" onclick="toggleAutoSpeak()" title="ऑटो बोलें">🔊</button>
+                <div class="bot-selector" id="botSelector">
+                    <span>🤖</span> SahcharAI <span>▼</span>
+                </div>
             </div>
         </div>
 
@@ -236,10 +269,11 @@
 
         <div class="input-area">
             <div class="input-row">
-                <input type="text" id="userInput" placeholder="अपना सवाल लिखें..." onkeypress="handleKeyPress(event)">
+                <input type="text" id="userInput" placeholder="अपना सवाल लिखें या बोलें..." onkeypress="handleKeyPress(event)">
                 <button class="btn-send" onclick="sendMessage()">भेजें</button>
             </div>
             <div class="action-buttons">
+                <button class="action-btn mic-btn" id="micBtn" onclick="startVoiceInput()">🎤 बोलें</button>
                 <button class="action-btn" onclick="showImageGenModal()">🎨 इमेज बनाएं</button>
                 <button class="action-btn" onclick="document.getElementById('imageUpload').click()">📷 फोटो विश्लेषण</button>
                 <input type="file" id="imageUpload" accept="image/*" style="display:none" onchange="analyzeImage(this.files[0])">
@@ -247,7 +281,7 @@
         </div>
 
         <div class="footer">
-            राम प्रकाश कुमार द्वारा निर्मित | बैकएंड: सहचर AI v3.3
+            राम प्रकाश कुमार द्वारा निर्मित | 🔊 बोलने के लिए टेक्स्ट पर क्लिक करें
         </div>
     </div>
 
@@ -280,13 +314,116 @@
         let currentBot = 'SahcharAI';
         let sessionId = localStorage.getItem('session_id') || crypto.randomUUID();
         localStorage.setItem('session_id', sessionId);
+        let autoSpeak = true;
+        let speechSynthesis = window.speechSynthesis;
+        let currentUtterance = null;
 
         // DOM Elements
         const messagesDiv = document.getElementById('messages');
         const userInput = document.getElementById('userInput');
         const typingDiv = document.getElementById('typing');
 
-        // Helper Functions
+        // ========== TEXT TO SPEECH ==========
+        function speakText(text) {
+            if (!autoSpeak && !window.speakingNow) return;
+            
+            // Stop any ongoing speech
+            if (currentUtterance) {
+                speechSynthesis.cancel();
+            }
+            
+            // Clean text for better speech
+            let cleanText = text.replace(/[^\u0900-\u097F\sa-zA-Z0-9,।?.!]/g, '');
+            cleanText = cleanText.replace(/\*/g, '');
+            
+            if (cleanText.length === 0) return;
+            
+            currentUtterance = new SpeechSynthesisUtterance(cleanText);
+            currentUtterance.lang = 'hi-IN';  // Hindi language
+            currentUtterance.rate = 0.9;      // Slightly slow for clarity
+            currentUtterance.pitch = 1.0;
+            currentUtterance.volume = 1.0;
+            
+            // Try to find Hindi voice
+            speechSynthesis.onvoiceschanged = () => {
+                const voices = speechSynthesis.getVoices();
+                const hindiVoice = voices.find(v => v.lang === 'hi-IN' || v.lang.startsWith('hi'));
+                if (hindiVoice) currentUtterance.voice = hindiVoice;
+                speechSynthesis.speak(currentUtterance);
+            };
+            
+            // If voices already loaded
+            const voices = speechSynthesis.getVoices();
+            const hindiVoice = voices.find(v => v.lang === 'hi-IN' || v.lang.startsWith('hi'));
+            if (hindiVoice) currentUtterance.voice = hindiVoice;
+            
+            speechSynthesis.speak(currentUtterance);
+            
+            currentUtterance.onend = () => {
+                currentUtterance = null;
+                window.speakingNow = false;
+            };
+        }
+        
+        function toggleAutoSpeak() {
+            autoSpeak = !autoSpeak;
+            const btn = document.getElementById('globalSpeaker');
+            btn.innerHTML = autoSpeak ? '🔊' : '🔇';
+            btn.title = autoSpeak ? 'ऑटो बोलें बंद करें' : 'ऑटो बोलें चालू करें';
+        }
+        
+        function speakSpecificMessage(text, element) {
+            window.speakingNow = true;
+            speakText(text);
+        }
+
+        // ========== VOICE INPUT (Speech Recognition) ==========
+        let recognition = null;
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.lang = 'hi-IN';
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                userInput.value = transcript;
+                sendMessage();
+                document.getElementById('micBtn').innerHTML = '🎤 बोलें';
+                document.getElementById('micBtn').style.background = '';
+            };
+            
+            recognition.onerror = (event) => {
+                console.log('Speech recognition error:', event.error);
+                document.getElementById('micBtn').innerHTML = '🎤 बोलें';
+                document.getElementById('micBtn').style.background = '';
+                if (event.error !== 'no-speech') {
+                    alert('बोलते समय त्रुटि। कृपया फिर से प्रयास करें।');
+                }
+            };
+            
+            recognition.onend = () => {
+                document.getElementById('micBtn').innerHTML = '🎤 बोलें';
+                document.getElementById('micBtn').style.background = '';
+            };
+        }
+        
+        function startVoiceInput() {
+            if (!recognition) {
+                alert('आपका ब्राउज़र वॉयस इनपुट सपोर्ट नहीं करता। Chrome का उपयोग करें।');
+                return;
+            }
+            try {
+                recognition.start();
+                document.getElementById('micBtn').innerHTML = '🎤 सुन रहा हूँ...';
+                document.getElementById('micBtn').style.background = '#4caf50';
+            } catch (e) {
+                console.log('Recognition already started');
+            }
+        }
+
+        // ========== HELPER FUNCTIONS ==========
         function scrollToBottom() { messagesDiv.scrollTop = messagesDiv.scrollHeight; }
         function showTyping(show) { typingDiv.style.display = show ? 'flex' : 'none'; scrollToBottom(); }
         
@@ -304,6 +441,24 @@
             } else {
                 msgDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
                 msgDiv.textContent = text;
+                
+                // Add speaker icon for bot messages
+                if (!isUser) {
+                    const speakerIcon = document.createElement('span');
+                    speakerIcon.className = 'speak-icon';
+                    speakerIcon.innerHTML = '🔊';
+                    speakerIcon.title = 'बोलकर सुनें';
+                    speakerIcon.onclick = (e) => {
+                        e.stopPropagation();
+                        speakSpecificMessage(text, msgDiv);
+                    };
+                    msgDiv.appendChild(speakerIcon);
+                    
+                    // Auto-speak if enabled
+                    if (autoSpeak) {
+                        speakText(text);
+                    }
+                }
             }
             messagesDiv.appendChild(msgDiv);
             scrollToBottom();
@@ -399,8 +554,10 @@
         
         function switchBot(botName) {
             currentBot = botName;
-            document.getElementById('botSelector').innerHTML = botName === 'SahcharAI' ? '🤖 SahcharAI ▼' :
-                                                              (botName === 'SahcharAssistant' ? '👨‍💼 SahcharAssistant ▼' : '⭐ SuperSahchar ▼');
+            const botSelector = document.getElementById('botSelector');
+            if (botName === 'SahcharAI') botSelector.innerHTML = '🤖 SahcharAI ▼';
+            else if (botName === 'SahcharAssistant') botSelector.innerHTML = '👨‍💼 SahcharAssistant ▼';
+            else botSelector.innerHTML = '⭐ SuperSahchar ▼';
             closeBotModal();
             addMessage(`नमस्ते! मैं ${botName} हूँ। आपकी सेवा में हमेशा तत्पर। 🙏`, false);
         }
