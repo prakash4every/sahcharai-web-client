@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>SahcharAI - Fast Web Assistant</title>
+    <title>SahcharAI - Web Assistant with Voice</title>
     <style>
-        /* ... same CSS as before ... */
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
+
         body {
             font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -20,6 +20,7 @@
             align-items: center;
             padding: 20px;
         }
+
         .app-container {
             width: 100%;
             max-width: 500px;
@@ -31,6 +32,7 @@
             flex-direction: column;
             overflow: hidden;
         }
+
         .chat-header {
             background: #4a148c;
             color: white;
@@ -66,7 +68,7 @@
             align-items: center;
             justify-content: center;
         }
-        .speaker-btn:hover { background: rgba(255,255,255,0.3); }
+        .speaker-btn.active { background: #4caf50; }
         .messages {
             flex: 1;
             overflow-y: auto;
@@ -172,9 +174,8 @@
             animation: pulse 1s infinite;
         }
         @keyframes pulse {
-            0% { transform: scale(1); }
+            0%, 100% { transform: scale(1); }
             50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
         }
         .modal {
             display: none;
@@ -291,108 +292,111 @@
         let currentBot = 'SahcharAI';
         let sessionId = localStorage.getItem('session_id') || crypto.randomUUID();
         localStorage.setItem('session_id', sessionId);
-        let autoSpeak = false;
+        let autoSpeak = true;  // ✅ Default ON - TTS enabled
         let speechSynthesis = window.speechSynthesis;
         let currentUtterance = null;
         let pendingImageFile = null;
         let isRecognizing = false;
-        let lastSpokenMessage = null;
-        let lastSpeakTime = 0;
-        let isSpeaking = false;
-        let speechQueue = [];
-
-        // Preload Hindi voice
-        let preloadedVoice = null;
-        function preloadHindiVoice() {
-            const voices = speechSynthesis.getVoices();
-            preloadedVoice = voices.find(v => v.lang === 'hi-IN' || v.lang.startsWith('hi'));
-            if (preloadedVoice) {
-                console.log('✅ Hindi voice preloaded:', preloadedVoice.name);
-            } else {
-                setTimeout(preloadHindiVoice, 200);
-            }
-        }
-        if (speechSynthesis.getVoices().length > 0) {
-            preloadHindiVoice();
-        } else {
-            speechSynthesis.onvoiceschanged = preloadHindiVoice;
-        }
 
         // DOM Elements
         const messagesDiv = document.getElementById('messages');
         const userInput = document.getElementById('userInput');
         const typingDiv = document.getElementById('typing');
 
-        // ========== FAST TEXT TO SPEECH (No delay) ==========
+        // ========== FIXED: TEXT TO SPEECH (Working) ==========
         function speakText(text) {
-            if (!autoSpeak) return;
-            
-            // Cancel any ongoing speech immediately
-            if (currentUtterance) {
-                speechSynthesis.cancel();
-                currentUtterance = null;
+            if (!autoSpeak) {
+                console.log('AutoSpeak is OFF');
+                return;
             }
             
+            if (!text || text.length === 0) return;
+            
+            // Clean text - remove special characters, keep Hindi and English
             let cleanText = text.replace(/[^\u0900-\u097F\sa-zA-Z0-9,।?.!]/g, '');
             cleanText = cleanText.replace(/\*/g, '');
-            cleanText = cleanText.substring(0, 300);
+            cleanText = cleanText.trim();
             
             if (cleanText.length === 0) return;
             
+            // Cancel any ongoing speech
+            if (currentUtterance) {
+                try {
+                    speechSynthesis.cancel();
+                } catch(e) {}
+                currentUtterance = null;
+            }
+            
+            // Create new utterance
             currentUtterance = new SpeechSynthesisUtterance(cleanText);
             currentUtterance.lang = 'hi-IN';
-            currentUtterance.rate = 0.95;
+            currentUtterance.rate = 0.9;
             currentUtterance.pitch = 1.0;
             currentUtterance.volume = 1.0;
             
-            // Use preloaded voice for instant response
-            if (preloadedVoice) {
-                currentUtterance.voice = preloadedVoice;
-            } else {
+            // Try to set Hindi voice
+            try {
                 const voices = speechSynthesis.getVoices();
                 const hindiVoice = voices.find(v => v.lang === 'hi-IN' || v.lang.startsWith('hi'));
-                if (hindiVoice) currentUtterance.voice = hindiVoice;
+                if (hindiVoice) {
+                    currentUtterance.voice = hindiVoice;
+                    console.log('Using Hindi voice:', hindiVoice.name);
+                } else {
+                    console.log('Hindi voice not found, using default');
+                }
+            } catch(e) {
+                console.log('Voice selection error:', e);
             }
             
-            lastSpokenMessage = cleanText;
-            lastSpeakTime = Date.now();
-            
             currentUtterance.onend = () => {
+                console.log('Speech ended');
                 currentUtterance = null;
-                isSpeaking = false;
-                // Process next in queue
-                if (speechQueue.length > 0) {
-                    const next = speechQueue.shift();
-                    setTimeout(() => speakText(next), 50);
-                }
             };
             
-            currentUtterance.onerror = () => {
+            currentUtterance.onerror = (event) => {
+                console.log('Speech error:', event.error);
                 currentUtterance = null;
-                isSpeaking = false;
             };
             
-            isSpeaking = true;
-            speechSynthesis.speak(currentUtterance);
+            console.log('Speaking:', cleanText.substring(0, 50));
+            
+            // Speak
+            try {
+                speechSynthesis.speak(currentUtterance);
+            } catch(e) {
+                console.log('Speak error:', e);
+            }
+        }
+        
+        // Initialize voices on page load
+        function initVoices() {
+            if (speechSynthesis.getVoices().length > 0) {
+                console.log('Voices loaded:', speechSynthesis.getVoices().length);
+            }
+        }
+        
+        if (speechSynthesis.getVoices().length > 0) {
+            initVoices();
+        } else {
+            speechSynthesis.onvoiceschanged = initVoices;
         }
         
         function toggleAutoSpeak() {
             autoSpeak = !autoSpeak;
             const btn = document.getElementById('globalSpeaker');
-            btn.innerHTML = autoSpeak ? '🔊' : '🔇';
-            if (!autoSpeak && currentUtterance) {
-                speechSynthesis.cancel();
-                currentUtterance = null;
-                isSpeaking = false;
-                speechQueue = [];
+            if (autoSpeak) {
+                btn.innerHTML = '🔊';
+                btn.style.background = '#4caf50';
+                btn.title = 'ऑटो बोलें बंद करें';
+            } else {
+                btn.innerHTML = '🔇';
+                btn.style.background = 'rgba(255,255,255,0.2)';
+                btn.title = 'ऑटो बोलें चालू करें';
             }
+            console.log('AutoSpeak:', autoSpeak);
         }
         
         function speakSpecificMessage(text) {
-            if (currentUtterance) {
-                speechSynthesis.cancel();
-                currentUtterance = null;
-            }
             const oldAutoSpeak = autoSpeak;
             autoSpeak = true;
             speakText(text);
@@ -407,7 +411,6 @@
             recognition.lang = 'hi-IN';
             recognition.continuous = false;
             recognition.interimResults = false;
-            recognition.maxAlternatives = 1;
             
             recognition.onstart = () => {
                 isRecognizing = true;
@@ -503,8 +506,7 @@
                     msgDiv.appendChild(speakerIcon);
                     
                     if (autoSpeak) {
-                        // Slight delay to ensure DOM is ready
-                        setTimeout(() => speakText(text), 50);
+                        setTimeout(() => speakText(text), 100);
                     }
                 }
             }
@@ -649,6 +651,12 @@
         }
         
         document.getElementById('botSelector').onclick = showBotSelector;
+        
+        // Test TTS on page load
+        setTimeout(() => {
+            console.log('Testing TTS...');
+            speakText('नमस्ते, टीटीएस काम कर रहा है');
+        }, 2000);
     </script>
 </body>
 </html>
