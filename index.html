@@ -121,6 +121,13 @@
             border-radius: 12px;
             cursor: pointer;
         }
+        .image-preview {
+            max-width: 150px;
+            max-height: 150px;
+            border-radius: 12px;
+            margin-top: 8px;
+            cursor: pointer;
+        }
         .typing-indicator {
             background: white;
             padding: 12px 16px;
@@ -194,7 +201,7 @@
         }
         .mic-btn:hover { background: #6a1b9a; }
 
-        /* Modal */
+        /* Modal for image preview (optional) */
         .modal {
             display: none;
             position: fixed;
@@ -220,9 +227,7 @@
             margin: 10px 0;
             border: 1px solid #ddd;
             border-radius: 12px;
-            font-family: inherit;
         }
-        .modal-content textarea { resize: vertical; }
         .modal-buttons {
             display: flex;
             gap: 10px;
@@ -277,8 +282,8 @@
             <div class="action-buttons">
                 <button class="action-btn mic-btn" id="micBtn" onclick="startVoiceInput()">🎤 बोलें</button>
                 <button class="action-btn" onclick="showImageGenModal()">🎨 इमेज बनाएं</button>
-                <button class="action-btn" onclick="document.getElementById('imageUpload').click()">📷 फोटो विश्लेषण</button>
-                <input type="file" id="imageUpload" accept="image/*" style="display:none" onchange="prepareImageAnalysis(this.files[0])">
+                <button class="action-btn" id="photoAnalysisBtn" onclick="selectImageForAnalysis()">📷 फोटो विश्लेषण</button>
+                <input type="file" id="imageUpload" accept="image/*" style="display:none">
             </div>
         </div>
 
@@ -306,19 +311,6 @@
             <div class="modal-buttons">
                 <button onclick="generateImage()">बनाएं</button>
                 <button onclick="closeImageModal()">रद्द करें</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Image Analysis Prompt Modal -->
-    <div class="modal" id="analysisPromptModal">
-        <div class="modal-content">
-            <h3>📷 फोटो विश्लेषण</h3>
-            <p style="margin-bottom: 10px; color: #666;">इस फोटो के बारे में क्या जानना चाहते हैं?</p>
-            <textarea id="analysisPrompt" rows="3" placeholder="उदाहरण: इस फोटो में क्या है? यह कहाँ की तस्वीर लगती है? इसमें कितने लोग हैं?"></textarea>
-            <div class="modal-buttons">
-                <button onclick="submitImageAnalysis()" style="background: #667eea; color: white;">विश्लेषण करें</button>
-                <button onclick="closeAnalysisModal()">रद्द करें</button>
             </div>
         </div>
     </div>
@@ -437,7 +429,7 @@
         function scrollToBottom() { messagesDiv.scrollTop = messagesDiv.scrollHeight; }
         function showTyping(show) { typingDiv.style.display = show ? 'flex' : 'none'; scrollToBottom(); }
         
-        function addMessage(text, isUser, isImage = false, imageUrl = null) {
+        function addMessage(text, isUser, isImage = false, imageUrl = null, isImagePreview = false, previewData = null) {
             const msgDiv = document.createElement('div');
             if (isImage) {
                 msgDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
@@ -448,6 +440,20 @@
                 img.style.cursor = 'pointer';
                 img.onclick = () => window.open(imageUrl, '_blank');
                 msgDiv.appendChild(img);
+            } else if (isImagePreview && previewData) {
+                msgDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+                const img = document.createElement('img');
+                img.src = previewData;
+                img.className = 'image-preview';
+                img.title = 'क्लिक करें बड़ा करें';
+                img.onclick = () => window.open(previewData, '_blank');
+                msgDiv.appendChild(img);
+                const caption = document.createElement('div');
+                caption.style.fontSize = '0.7rem';
+                caption.style.marginTop = '4px';
+                caption.style.opacity = '0.7';
+                caption.textContent = text;
+                msgDiv.appendChild(caption);
             } else {
                 msgDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
                 msgDiv.textContent = text;
@@ -472,37 +478,47 @@
             scrollToBottom();
         }
 
-        // ========== IMAGE ANALYSIS WITH PROMPT ==========
-        function prepareImageAnalysis(file) {
-            if (!file) return;
-            pendingImageFile = file;
-            // Clear previous prompt
-            document.getElementById('analysisPrompt').value = '';
-            // Show modal to get user's question
-            document.getElementById('analysisPromptModal').style.display = 'flex';
+        // ========== IMAGE ANALYSIS (Without Separate Dialog) ==========
+        function selectImageForAnalysis() {
+            const fileInput = document.getElementById('imageUpload');
+            fileInput.onchange = function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    pendingImageFile = file;
+                    // Show image preview in chat
+                    const reader = new FileReader();
+                    reader.onload = function(event) {
+                        addMessage('📷 फोटो चयनित:', true, false, null, true, event.target.result);
+                        // Focus on input box for user to type question
+                        userInput.focus();
+                        userInput.placeholder = "इस फोटो के बारे में क्या जानना चाहते हैं? लिखें...";
+                        // Add hint message
+                        addMessage('✅ फोटो अपलोड हो गई। अब नीचे लिखकर भेजें कि इस फोटो के बारे में क्या जानना चाहते हैं? 🙏', false);
+                    };
+                    reader.readAsDataURL(file);
+                }
+                fileInput.value = ''; // Reset so same file can be selected again
+            };
+            fileInput.click();
         }
         
-        function closeAnalysisModal() {
-            document.getElementById('analysisPromptModal').style.display = 'none';
-            pendingImageFile = null;
-        }
-        
-        async function submitImageAnalysis() {
-            const prompt = document.getElementById('analysisPrompt').value.trim();
-            const defaultPrompt = "इस फोटो के बारे में विस्तार से बताएं";
-            const finalPrompt = prompt.length > 0 ? prompt : defaultPrompt;
+        async function sendImageForAnalysis() {
+            if (!pendingImageFile) return false;
             
-            closeAnalysisModal();
+            const userQuestion = userInput.value.trim();
+            if (!userQuestion) {
+                addMessage('❌ कृपया फोटो के बारे में अपना सवाल लिखें।', false);
+                return false;
+            }
             
-            if (!pendingImageFile) return;
-            
-            // Show user message with photo and prompt
-            addMessage(`📷 [फोटो अपलोड हुआ]\nप्रश्न: ${finalPrompt}`, true);
+            // Add user's question to chat
+            addMessage(userQuestion, true);
+            userInput.value = '';
             showTyping(true);
             
             const formData = new FormData();
             formData.append('image', pendingImageFile);
-            formData.append('message', finalPrompt);
+            formData.append('message', userQuestion);
             formData.append('bot', currentBot);
             
             try {
@@ -514,16 +530,24 @@
                 showTyping(false);
                 const analysis = data.analysis || '✅ फोटो विश्लेषण पूरा हुआ!';
                 addMessage(analysis, false);
+                pendingImageFile = null;
+                userInput.placeholder = "अपना सवाल लिखें या बोलें...";
+                return true;
             } catch (error) {
                 showTyping(false);
                 addMessage('❌ फोटो विश्लेषण में समस्या आई। कृपया पुनः प्रयास करें। 🙏', false);
+                return false;
             }
-            
-            pendingImageFile = null;
         }
 
         // ========== CHAT MESSAGE ==========
         async function sendMessage() {
+            // If there's a pending image, send for analysis first
+            if (pendingImageFile) {
+                await sendImageForAnalysis();
+                return;
+            }
+            
             const text = userInput.value.trim();
             if (!text) return;
             addMessage(text, true);
@@ -547,7 +571,12 @@
                 addMessage("❌ नेटवर्क त्रुटि! कृपया पुनः प्रयास करें। 🙏", false);
             }
         }
-        function handleKeyPress(event) { if (event.key === 'Enter') sendMessage(); }
+        
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
 
         // ========== IMAGE GENERATION ==========
         function showImageGenModal() { document.getElementById('imageModal').style.display = 'flex'; }
