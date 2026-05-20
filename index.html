@@ -3,14 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>SahcharAI - Web Assistant with Voice</title>
+    <title>SahcharAI - Web Assistant</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -20,7 +15,6 @@
             align-items: center;
             padding: 20px;
         }
-
         .app-container {
             width: 100%;
             max-width: 500px;
@@ -32,7 +26,6 @@
             flex-direction: column;
             overflow: hidden;
         }
-
         .chat-header {
             background: #4a148c;
             color: white;
@@ -109,8 +102,20 @@
             transition: opacity 0.2s;
         }
         .speak-icon:hover { opacity: 1; }
-        .image-message { max-width: 200px; border-radius: 12px; cursor: pointer; }
-        .image-preview { max-width: 150px; max-height: 150px; border-radius: 12px; margin-top: 8px; cursor: pointer; }
+        .image-message {
+            max-width: 250px;
+            max-height: 250px;
+            border-radius: 12px;
+            cursor: pointer;
+            margin: 5px 0;
+        }
+        .image-preview {
+            max-width: 150px;
+            max-height: 150px;
+            border-radius: 12px;
+            margin-top: 8px;
+            cursor: pointer;
+        }
         .typing-indicator {
             background: white;
             padding: 12px 16px;
@@ -169,14 +174,8 @@
         .action-btn:hover { background: #e0e0e0; }
         .mic-btn { background: #4a148c; color: white; }
         .mic-btn:hover { background: #6a1b9a; }
-        .mic-btn.listening {
-            background: #4caf50;
-            animation: pulse 1s infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-        }
+        .mic-btn.listening { background: #4caf50; animation: pulse 1s infinite; }
+        @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
         .modal {
             display: none;
             position: fixed;
@@ -292,108 +291,53 @@
         let currentBot = 'SahcharAI';
         let sessionId = localStorage.getItem('session_id') || crypto.randomUUID();
         localStorage.setItem('session_id', sessionId);
-        let autoSpeak = true;  // ✅ Default ON - TTS enabled
+        let autoSpeak = true;
         let speechSynthesis = window.speechSynthesis;
         let currentUtterance = null;
         let pendingImageFile = null;
         let isRecognizing = false;
 
-        // DOM Elements
         const messagesDiv = document.getElementById('messages');
         const userInput = document.getElementById('userInput');
         const typingDiv = document.getElementById('typing');
 
-        // ========== FIXED: TEXT TO SPEECH (Working) ==========
+        // ========== TEXT TO SPEECH ==========
         function speakText(text) {
-            if (!autoSpeak) {
-                console.log('AutoSpeak is OFF');
-                return;
-            }
-            
+            if (!autoSpeak) return;
             if (!text || text.length === 0) return;
             
-            // Clean text - remove special characters, keep Hindi and English
             let cleanText = text.replace(/[^\u0900-\u097F\sa-zA-Z0-9,।?.!]/g, '');
-            cleanText = cleanText.replace(/\*/g, '');
-            cleanText = cleanText.trim();
-            
+            cleanText = cleanText.replace(/\*/g, '').trim();
             if (cleanText.length === 0) return;
             
-            // Cancel any ongoing speech
             if (currentUtterance) {
-                try {
-                    speechSynthesis.cancel();
-                } catch(e) {}
+                try { speechSynthesis.cancel(); } catch(e) {}
                 currentUtterance = null;
             }
             
-            // Create new utterance
             currentUtterance = new SpeechSynthesisUtterance(cleanText);
             currentUtterance.lang = 'hi-IN';
             currentUtterance.rate = 0.9;
             currentUtterance.pitch = 1.0;
             currentUtterance.volume = 1.0;
             
-            // Try to set Hindi voice
             try {
                 const voices = speechSynthesis.getVoices();
                 const hindiVoice = voices.find(v => v.lang === 'hi-IN' || v.lang.startsWith('hi'));
-                if (hindiVoice) {
-                    currentUtterance.voice = hindiVoice;
-                    console.log('Using Hindi voice:', hindiVoice.name);
-                } else {
-                    console.log('Hindi voice not found, using default');
-                }
-            } catch(e) {
-                console.log('Voice selection error:', e);
-            }
+                if (hindiVoice) currentUtterance.voice = hindiVoice;
+            } catch(e) {}
             
-            currentUtterance.onend = () => {
-                console.log('Speech ended');
-                currentUtterance = null;
-            };
+            currentUtterance.onend = () => { currentUtterance = null; };
+            currentUtterance.onerror = () => { currentUtterance = null; };
             
-            currentUtterance.onerror = (event) => {
-                console.log('Speech error:', event.error);
-                currentUtterance = null;
-            };
-            
-            console.log('Speaking:', cleanText.substring(0, 50));
-            
-            // Speak
-            try {
-                speechSynthesis.speak(currentUtterance);
-            } catch(e) {
-                console.log('Speak error:', e);
-            }
-        }
-        
-        // Initialize voices on page load
-        function initVoices() {
-            if (speechSynthesis.getVoices().length > 0) {
-                console.log('Voices loaded:', speechSynthesis.getVoices().length);
-            }
-        }
-        
-        if (speechSynthesis.getVoices().length > 0) {
-            initVoices();
-        } else {
-            speechSynthesis.onvoiceschanged = initVoices;
+            try { speechSynthesis.speak(currentUtterance); } catch(e) {}
         }
         
         function toggleAutoSpeak() {
             autoSpeak = !autoSpeak;
             const btn = document.getElementById('globalSpeaker');
-            if (autoSpeak) {
-                btn.innerHTML = '🔊';
-                btn.style.background = '#4caf50';
-                btn.title = 'ऑटो बोलें बंद करें';
-            } else {
-                btn.innerHTML = '🔇';
-                btn.style.background = 'rgba(255,255,255,0.2)';
-                btn.title = 'ऑटो बोलें चालू करें';
-            }
-            console.log('AutoSpeak:', autoSpeak);
+            btn.innerHTML = autoSpeak ? '🔊' : '🔇';
+            btn.style.background = autoSpeak ? '#4caf50' : 'rgba(255,255,255,0.2)';
         }
         
         function speakSpecificMessage(text) {
@@ -428,8 +372,7 @@
                 recognition.stop();
             };
             
-            recognition.onerror = (event) => {
-                console.log('Speech error:', event.error);
+            recognition.onerror = () => {
                 const micBtn = document.getElementById('micBtn');
                 micBtn.innerHTML = '🎤 बोलें';
                 micBtn.classList.remove('listening');
@@ -457,26 +400,42 @@
             try {
                 userInput.value = '';
                 recognition.start();
-            } catch (e) {
-                console.log(e);
-            }
+            } catch (e) {}
         }
 
         // ========== HELPER FUNCTIONS ==========
         function scrollToBottom() { messagesDiv.scrollTop = messagesDiv.scrollHeight; }
         function showTyping(show) { typingDiv.style.display = show ? 'flex' : 'none'; scrollToBottom(); }
         
+        // ✅ FIXED: Image display with proxy to handle CORS
+        function displayImage(imageUrl, container) {
+            const img = document.createElement('img');
+            
+            // If image is from Pollinations, add crossorigin attribute
+            if (imageUrl.includes('pollinations.ai')) {
+                img.crossOrigin = 'Anonymous';
+            }
+            
+            img.src = imageUrl;
+            img.className = 'image-message';
+            img.onclick = () => window.open(imageUrl, '_blank');
+            
+            // Fallback if image fails to load
+            img.onerror = () => {
+                console.log('Image load failed, trying with CORS proxy');
+                // Try with proxy if CORS issue
+                const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(imageUrl)}`;
+                img.src = proxyUrl;
+            };
+            
+            container.appendChild(img);
+        }
+        
         function addMessage(text, isUser, isImage = false, imageUrl = null, isImagePreview = false, previewData = null) {
             const msgDiv = document.createElement('div');
             if (isImage) {
                 msgDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
-                const img = document.createElement('img');
-                img.src = imageUrl;
-                img.style.maxWidth = '200px';
-                img.style.borderRadius = '12px';
-                img.style.cursor = 'pointer';
-                img.onclick = () => window.open(imageUrl, '_blank');
-                msgDiv.appendChild(img);
+                displayImage(imageUrl, msgDiv);
             } else if (isImagePreview && previewData) {
                 msgDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
                 const img = document.createElement('img');
@@ -498,7 +457,6 @@
                     const speakerIcon = document.createElement('span');
                     speakerIcon.className = 'speak-icon';
                     speakerIcon.innerHTML = '🔊';
-                    speakerIcon.title = 'बोलकर सुनें';
                     speakerIcon.onclick = (e) => {
                         e.stopPropagation();
                         speakSpecificMessage(text);
@@ -652,11 +610,8 @@
         
         document.getElementById('botSelector').onclick = showBotSelector;
         
-        // Test TTS on page load
-        setTimeout(() => {
-            console.log('Testing TTS...');
-            speakText('नमस्ते, SahcharAI के वेब वर्शन में आप का स्वागत है।');
-        }, 2000);
+        // Preload TTS voices
+        setTimeout(() => { speakText('नमस्ते'); }, 1000);
     </script>
 </body>
 </html>
