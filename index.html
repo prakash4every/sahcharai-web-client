@@ -3,9 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>SahcharAI - Web Assistant</title>
+    <title>SahcharAI - Web Assistant with Voice</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -15,6 +20,7 @@
             align-items: center;
             padding: 20px;
         }
+
         .app-container {
             width: 100%;
             max-width: 500px;
@@ -26,6 +32,7 @@
             flex-direction: column;
             overflow: hidden;
         }
+
         .chat-header {
             background: #4a148c;
             color: white;
@@ -36,7 +43,11 @@
             flex-wrap: wrap;
             gap: 10px;
         }
-        .header-title { display: flex; align-items: center; gap: 10px; }
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
         .header-title h1 { font-size: 1.3rem; }
         .header-title p { font-size: 0.7rem; opacity: 0.9; }
         .bot-selector {
@@ -289,8 +300,17 @@
         // ========== CONFIGURATION ==========
         const API_URL = 'https://sahchar-ai-backend.onrender.com';
         let currentBot = 'SahcharAI';
-        let sessionId = localStorage.getItem('session_id') || crypto.randomUUID();
-        localStorage.setItem('session_id', sessionId);
+        
+        // ✅ FIXED: Generate unique session ID (persistent across page reloads)
+        let sessionId = localStorage.getItem('session_id');
+        if (!sessionId) {
+            sessionId = crypto.randomUUID();
+            localStorage.setItem('session_id', sessionId);
+            console.log('🆕 New session created:', sessionId.substring(0, 8) + '...');
+        } else {
+            console.log('🔄 Existing session:', sessionId.substring(0, 8) + '...');
+        }
+        
         let autoSpeak = true;
         let speechSynthesis = window.speechSynthesis;
         let currentUtterance = null;
@@ -407,27 +427,15 @@
         function scrollToBottom() { messagesDiv.scrollTop = messagesDiv.scrollHeight; }
         function showTyping(show) { typingDiv.style.display = show ? 'flex' : 'none'; scrollToBottom(); }
         
-        // ✅ FIXED: Image display with proxy to handle CORS
         function displayImage(imageUrl, container) {
             const img = document.createElement('img');
-            
-            // If image is from Pollinations, add crossorigin attribute
-            if (imageUrl.includes('pollinations.ai')) {
-                img.crossOrigin = 'Anonymous';
-            }
-            
             img.src = imageUrl;
             img.className = 'image-message';
             img.onclick = () => window.open(imageUrl, '_blank');
-            
-            // Fallback if image fails to load
             img.onerror = () => {
-                console.log('Image load failed, trying with CORS proxy');
-                // Try with proxy if CORS issue
-                const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(imageUrl)}`;
-                img.src = proxyUrl;
+                console.log('Image load failed, trying fallback');
+                img.src = `https://placehold.co/1024x1024/4CAF50/white?text=${encodeURIComponent('Image')}`;
             };
-            
             container.appendChild(img);
         }
         
@@ -528,7 +536,7 @@
             }
         }
 
-        // ========== CHAT MESSAGE ==========
+        // ========== CHAT MESSAGE (WITH SESSION ID) ==========
         async function sendMessage() {
             if (pendingImageFile) {
                 await sendImageForAnalysis();
@@ -543,10 +551,19 @@
             try {
                 const endpoint = currentBot === 'SahcharAssistant' ? '/chat-assistant' : 
                                (currentBot === 'SuperSahchar' ? '/chat-nvidia' : '/chat');
+                
+                // ✅ Sending sessionId both in headers and body for compatibility
                 const response = await fetch(API_URL + endpoint, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-Session-Id': sessionId },
-                    body: JSON.stringify({ message: text, sessionId: sessionId, bot: currentBot })
+                    headers: { 
+                        'Content-Type': 'application/json', 
+                        'X-Session-Id': sessionId
+                    },
+                    body: JSON.stringify({ 
+                        message: text, 
+                        sessionId: sessionId, 
+                        bot: currentBot 
+                    })
                 });
                 const data = await response.json();
                 showTyping(false);
@@ -609,6 +626,9 @@
         }
         
         document.getElementById('botSelector').onclick = showBotSelector;
+        
+        // Log session info on load
+        console.log('🌐 Web Session ID:', sessionId.substring(0, 8) + '...');
         
         // Preload TTS voices
         setTimeout(() => { speakText('नमस्ते'); }, 1000);
