@@ -298,10 +298,17 @@
 
     <script>
         // ========== CONFIGURATION ==========
-        const API_URL = 'https://sahchar-ai-backend.onrender.com';
+        // 🔥 NEW: Firebase Backend URL (Primary)
+        const FIREBASE_API_URL = 'https://api-5n6fh3d24a-uc.a.run.app';
+        // 🎙️ Legacy Render URL (fallback or if needed)
+        const RENDER_API_URL = 'https://sahchar-ai-backend.onrender.com';
+        
+        // Use Firebase URL as primary
+        const API_URL = FIREBASE_API_URL;
+        
         let currentBot = 'SahcharAI';
         
-        // ✅ FIXED: Generate unique session ID (persistent across page reloads)
+        // Generate unique session ID (persistent across page reloads)
         let sessionId = localStorage.getItem('session_id');
         if (!sessionId) {
             sessionId = crypto.randomUUID();
@@ -516,6 +523,7 @@
             formData.append('image', pendingImageFile);
             formData.append('message', userQuestion);
             formData.append('bot', currentBot);
+            formData.append('sessionId', sessionId);
             
             try {
                 const response = await fetch(API_URL + '/api/analyze-image', {
@@ -549,10 +557,18 @@
             showTyping(true);
             
             try {
-                const endpoint = currentBot === 'SahcharAssistant' ? '/chat-assistant' : 
-                               (currentBot === 'SuperSahchar' ? '/chat-nvidia' : '/chat');
+                let endpoint;
+                switch(currentBot) {
+                    case 'SahcharAssistant':
+                        endpoint = '/chat-assistant';
+                        break;
+                    case 'SuperSahchar':
+                        endpoint = '/chat-nvidia';
+                        break;
+                    default:
+                        endpoint = '/chat';
+                }
                 
-                // ✅ Sending sessionId both in headers and body for compatibility
                 const response = await fetch(API_URL + endpoint, {
                     method: 'POST',
                     headers: { 
@@ -579,7 +595,7 @@
             if (event.key === 'Enter') sendMessage();
         }
 
-        // ========== IMAGE GENERATION ==========
+        // ========== IMAGE GENERATION (with Firebase) ==========
         function showImageGenModal() { document.getElementById('imageModal').style.display = 'flex'; }
         function closeImageModal() { document.getElementById('imageModal').style.display = 'none'; }
         
@@ -628,7 +644,9 @@
         document.getElementById('botSelector').onclick = showBotSelector;
         
         // Log session info on load
-        console.log('🌐 Web Session ID:', sessionId.substring(0, 8) + '...');
+        console.log('🌐 Web Client with Firebase Backend');
+        console.log('📡 API URL:', API_URL);
+        console.log('🆔 Session ID:', sessionId.substring(0, 8) + '...');
         
         // Preload TTS voices
         setTimeout(() => { speakText('नमस्ते'); }, 1000);
