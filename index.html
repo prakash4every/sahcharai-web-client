@@ -235,6 +235,7 @@
         }
         .modal-buttons button:first-child { background: #667eea; color: white; }
         .modal-buttons button:last-child { background: #ccc; }
+        .modal-buttons button:only-child { background: #667eea; color: white; }
         .footer {
             text-align: center;
             padding: 8px;
@@ -278,7 +279,7 @@
             <div class="action-buttons">
                 <button class="action-btn mic-btn" id="micBtn" onclick="startVoiceInput()">🎤 बोलें</button>
                 <button class="action-btn" onclick="showImageGenModal()">🎨 इमेज बनाएं</button>
-                <button class="action-btn" onclick="showVideoGenModal()">🎬 वीडियो बनाएं</button>
+                <button class="action-btn video-btn" onclick="showVideoGenModal()">🎬 वीडियो बनाएं</button>
                 <button class="action-btn" id="photoAnalysisBtn" onclick="selectImageForAnalysis()">📷 फोटो विश्लेषण</button>
                 <input type="file" id="imageUpload" accept="image/*" style="display:none">
             </div>
@@ -326,19 +327,13 @@
 
     <script>
         // ========== CONFIGURATION ==========
-        // 🔥 Firebase Backend URL
         const API_URL = 'https://api-5n6fh3d24a-uc.a.run.app';
         
         let currentBot = 'SahcharAI';
-        
-        // Generate unique session ID (persistent across page reloads)
         let sessionId = localStorage.getItem('session_id');
         if (!sessionId) {
             sessionId = crypto.randomUUID();
             localStorage.setItem('session_id', sessionId);
-            console.log('🆕 New session created:', sessionId.substring(0, 8) + '...');
-        } else {
-            console.log('🔄 Existing session:', sessionId.substring(0, 8) + '...');
         }
         
         let autoSpeak = true;
@@ -346,18 +341,41 @@
         let currentUtterance = null;
         let pendingImageFile = null;
         let isRecognizing = false;
+        
+        // Timeout for API calls (60 seconds)
+        const API_TIMEOUT = 60000;
 
         const messagesDiv = document.getElementById('messages');
         const userInput = document.getElementById('userInput');
         const typingDiv = document.getElementById('typing');
+
+        // Helper: Add timeout to fetch
+        async function fetchWithTimeout(url, options, timeout = API_TIMEOUT) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeout);
+            try {
+                const response = await fetch(url, { ...options, signal: controller.signal });
+                clearTimeout(timeoutId);
+                return response;
+            } catch (error) {
+                clearTimeout(timeoutId);
+                if (error.name === 'AbortError') {
+                    throw new Error('Request timeout. Please try again.');
+                }
+                throw error;
+            }
+        }
 
         // ========== TEXT TO SPEECH ==========
         function speakText(text) {
             if (!autoSpeak) return;
             if (!text || text.length === 0) return;
             
-            // Don't speak image/video URLs
-            if (text.startsWith('IMAGE_URL:') || text.startsWith('VIDEO_URL:')) return;
+            // Don't speak technical messages
+            if (text.startsWith('IMAGE_URL:') || text.startsWith('VIDEO_URL:') || 
+                text.includes('✅') || text.includes('🎨') || text.includes('🎬')) {
+                return;
+            }
             
             let cleanText = text.replace(/[^\u0900-\u097F\sa-zA-Z0-9,।?.!]/g, '');
             cleanText = cleanText.replace(/\*/g, '').trim();
@@ -372,16 +390,12 @@
             currentUtterance.lang = 'hi-IN';
             currentUtterance.rate = 0.9;
             currentUtterance.pitch = 1.0;
-            currentUtterance.volume = 1.0;
             
             try {
                 const voices = speechSynthesis.getVoices();
                 const hindiVoice = voices.find(v => v.lang === 'hi-IN' || v.lang.startsWith('hi'));
                 if (hindiVoice) currentUtterance.voice = hindiVoice;
             } catch(e) {}
-            
-            currentUtterance.onend = () => { currentUtterance = null; };
-            currentUtterance.onerror = () => { currentUtterance = null; };
             
             try { speechSynthesis.speak(currentUtterance); } catch(e) {}
         }
@@ -466,8 +480,8 @@
             img.className = 'image-message';
             img.onclick = () => window.open(imageUrl, '_blank');
             img.onerror = () => {
-                console.log('Image load failed, trying fallback');
-                img.src = `https://placehold.co/1024x1024/4CAF50/white?text=${encodeURIComponent('Image')}`;
+                console.log('Image load failed');
+                img.src = `https://placehold.co/1024x1024/4CAF50/white?text=${encodeURIComponent('Image Not Found')}`;
             };
             container.appendChild(img);
         }
@@ -479,11 +493,43 @@
             video.controls = true;
             video.style.maxWidth = '100%';
             video.style.borderRadius = '12px';
+            video.onerror = () => {
+                console.log('Video load failed');
+                container.innerHTML += '<div style="color:red">❌ Video failed to load</div>';
+            };
             container.appendChild(video);
         }
         
-        function addMessage(text, isUser, isImage = false, imageUrl = null, isVideo = false, videoUrl = null, isImagePreview = false, previewData = null) {
+        // ✅ Fixed: Proper parameter order with backward compatibility
+        function addMessage(text, isUser, options = {}) {
             const msgDiv = document.createElement('div');
+            
+            // Handle different call signatures for backward compatibility
+            let isImage = false;
+            let imageUrl = null;
+            let isVideo = false;
+            let videoUrl = null;
+            let isImagePreview = false;
+            let previewData = null;
+            
+            if (typeof options === 'boolean') {
+                // Old signature: addMessage(text, isUser, isImage, imageUrl, isVideo, videoUrl, isImagePreview, previewData)
+                const args = arguments;
+                isImage = args[2] || false;
+                imageUrl = args[3] || null;
+                isVideo = args[4] || false;
+                videoUrl = args[5] || null;
+                isImagePreview = args[6] || false;
+                previewData = args[7] || null;
+            } else {
+                // New signature with options object
+                isImage = options.isImage || false;
+                imageUrl = options.imageUrl || null;
+                isVideo = options.isVideo || false;
+                videoUrl = options.videoUrl || null;
+                isImagePreview = options.isImagePreview || false;
+                previewData = options.previewData || null;
+            }
             
             if (isImage && imageUrl) {
                 msgDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
@@ -508,7 +554,7 @@
                 msgDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
                 msgDiv.textContent = text;
                 
-                if (!isUser && !text.startsWith('IMAGE_URL:') && !text.startsWith('VIDEO_URL:')) {
+                if (!isUser && text && !text.startsWith('✅') && !text.startsWith('🎨') && !text.startsWith('🎬')) {
                     const speakerIcon = document.createElement('span');
                     speakerIcon.className = 'speak-icon';
                     speakerIcon.innerHTML = '🔊';
@@ -536,7 +582,7 @@
                     pendingImageFile = file;
                     const reader = new FileReader();
                     reader.onload = function(event) {
-                        addMessage('📷 फोटो चयनित:', true, false, null, false, null, true, event.target.result);
+                        addMessage('📷 फोटो चयनित:', true, { isImagePreview: true, previewData: event.target.result });
                         userInput.focus();
                         userInput.placeholder = "इस फोटो के बारे में क्या जानना चाहते हैं? लिखें...";
                         addMessage('✅ फोटो अपलोड हो गई। अब लिखकर भेजें।', false);
@@ -566,7 +612,7 @@
             formData.append('sessionId', sessionId);
             
             try {
-                const response = await fetch(API_URL + '/api/analyze-image', {
+                const response = await fetchWithTimeout(API_URL + '/api/analyze-image', {
                     method: 'POST',
                     body: formData
                 });
@@ -579,7 +625,8 @@
                 return true;
             } catch (error) {
                 showTyping(false);
-                addMessage('❌ त्रुटि। पुनः प्रयास करें।', false);
+                console.error('Analysis error:', error);
+                addMessage('❌ त्रुटि: ' + (error.message || 'पुनः प्रयास करें।'), false);
                 return false;
             }
         }
@@ -609,7 +656,7 @@
                         endpoint = '/chat';
                 }
                 
-                const response = await fetch(API_URL + endpoint, {
+                const response = await fetchWithTimeout(API_URL + endpoint, {
                     method: 'POST',
                     headers: { 
                         'Content-Type': 'application/json', 
@@ -627,7 +674,12 @@
                 addMessage(reply, false);
             } catch (error) {
                 showTyping(false);
-                addMessage("❌ नेटवर्क त्रुटि! पुनः प्रयास करें। 🙏", false);
+                console.error('Chat error:', error);
+                let errorMsg = "❌ नेटवर्क त्रुटि! पुनः प्रयास करें। 🙏";
+                if (error.message.includes('timeout')) {
+                    errorMsg = "❌ सर्वर समय पर जवाब नहीं दे रहा। कृपया बाद में प्रयास करें।";
+                }
+                addMessage(errorMsg, false);
             }
         }
         
@@ -647,7 +699,7 @@
             showTyping(true);
             
             try {
-                const response = await fetch(API_URL + '/api/image/generate', {
+                const response = await fetchWithTimeout(API_URL + '/api/image/generate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ prompt: prompt, bot: currentBot })
@@ -655,13 +707,16 @@
                 const data = await response.json();
                 showTyping(false);
                 if (data.imageUrl) {
-                    addMessage('ये रही इमेज:', false, true, data.imageUrl);
+                    // ✅ Both text message and image are displayed
+                    addMessage('✅ ये रही आपकी इमेज:', false);
+                    addMessage('', false, { isImage: true, imageUrl: data.imageUrl });
                 } else {
-                    addMessage('❌ इमेज नहीं बन पाई।', false);
+                    addMessage('❌ इमेज नहीं बन पाई। कृपया पुनः प्रयास करें।', false);
                 }
             } catch (error) {
                 showTyping(false);
-                addMessage('❌ Error: ' + error.message, false);
+                console.error('Image generation error:', error);
+                addMessage('❌ त्रुटि: ' + (error.message || 'इमेज नहीं बन पाई।'), false);
             }
             document.getElementById('imagePrompt').value = '';
         }
@@ -678,26 +733,40 @@
             showTyping(true);
             
             try {
-                const response = await fetch(API_URL + '/api/video/generate', {
+                // ✅ Add timeout handling for slow video generation
+                const response = await fetchWithTimeout(API_URL + '/api/video/generate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ prompt: prompt, bot: currentBot })
-                });
+                }, 90000); // 90 seconds timeout for video
+                
                 const data = await response.json();
                 showTyping(false);
                 
-                if (data.message) {
+                // ✅ Validate response structure
+                if (data && data.message) {
                     addMessage(data.message, false);
                 }
                 
-                if (data.videoUrl) {
-                    addMessage('ये रहा वीडियो:', false, false, null, true, data.videoUrl);
+                // ✅ Check if videoUrl exists and is valid
+                if (data.videoUrl && data.videoUrl.startsWith('http')) {
+                    addMessage('✅ ये रहा आपका वीडियो:', false);
+                    addMessage('', false, { isVideo: true, videoUrl: data.videoUrl });
+                } else if (data.success === false || data.error) {
+                    addMessage('❌ ' + (data.error || 'वीडियो नहीं बन पाई।'), false);
                 } else {
-                    addMessage('❌ वीडियो नहीं बन पाई।', false);
+                    addMessage('❌ वीडियो नहीं बन पाई। कृपया पुनः प्रयास करें।', false);
                 }
             } catch (error) {
                 showTyping(false);
-                addMessage('❌ Error: ' + error.message, false);
+                console.error('Video generation error:', error);
+                let errorMsg = "❌ वीडियो नहीं बन पाई। ";
+                if (error.message.includes('timeout')) {
+                    errorMsg = "⏰ वीडियो बनाने में बहुत समय लग रहा है। कृपया बाद में प्रयास करें।";
+                } else {
+                    errorMsg += error.message || "पुनः प्रयास करें।";
+                }
+                addMessage(errorMsg, false);
             }
             document.getElementById('videoPrompt').value = '';
         }
@@ -725,7 +794,7 @@
         
         document.getElementById('botSelector').onclick = showBotSelector;
         
-        // Log session info on load
+        // Log session info
         console.log('🌐 Web Client with Firebase Backend');
         console.log('📡 API URL:', API_URL);
         console.log('🆔 Session ID:', sessionId.substring(0, 8) + '...');
