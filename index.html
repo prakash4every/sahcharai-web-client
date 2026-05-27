@@ -5,12 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>SahcharAI - Web Assistant with Voice</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -20,7 +15,6 @@
             align-items: center;
             padding: 20px;
         }
-
         .app-container {
             width: 100%;
             max-width: 500px;
@@ -32,7 +26,6 @@
             flex-direction: column;
             overflow: hidden;
         }
-
         .chat-header {
             background: #4a148c;
             color: white;
@@ -43,11 +36,7 @@
             flex-wrap: wrap;
             gap: 10px;
         }
-        .header-title {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
+        .header-title { display: flex; align-items: center; gap: 10px; }
         .header-title h1 { font-size: 1.3rem; }
         .header-title p { font-size: 0.7rem; opacity: 0.9; }
         .bot-selector {
@@ -90,19 +79,8 @@
             word-wrap: break-word;
             position: relative;
         }
-        .user-message {
-            background: #667eea;
-            color: white;
-            align-self: flex-end;
-            border-bottom-right-radius: 4px;
-        }
-        .bot-message {
-            background: white;
-            color: #333;
-            align-self: flex-start;
-            border-bottom-left-radius: 4px;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-        }
+        .user-message { background: #667eea; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
+        .bot-message { background: white; color: #333; align-self: flex-start; border-bottom-left-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
         .speak-icon {
             position: absolute;
             bottom: 4px;
@@ -113,26 +91,9 @@
             transition: opacity 0.2s;
         }
         .speak-icon:hover { opacity: 1; }
-        .image-message {
-            max-width: 250px;
-            max-height: 250px;
-            border-radius: 12px;
-            cursor: pointer;
-            margin: 5px 0;
-        }
-        .image-preview {
-            max-width: 150px;
-            max-height: 150px;
-            border-radius: 12px;
-            margin-top: 8px;
-            cursor: pointer;
-        }
-        .video-message {
-            max-width: 280px;
-            border-radius: 12px;
-            margin: 5px 0;
-            cursor: pointer;
-        }
+        .image-message { max-width: 250px; max-height: 250px; border-radius: 12px; cursor: pointer; margin: 5px 0; }
+        .image-preview { max-width: 150px; max-height: 150px; border-radius: 12px; margin-top: 8px; cursor: pointer; }
+        .video-message { max-width: 280px; border-radius: 12px; margin: 5px 0; cursor: pointer; }
         .typing-indicator {
             background: white;
             padding: 12px 16px;
@@ -341,15 +302,12 @@
         let currentUtterance = null;
         let pendingImageFile = null;
         let isRecognizing = false;
-        
-        // Timeout for API calls (60 seconds)
         const API_TIMEOUT = 60000;
 
         const messagesDiv = document.getElementById('messages');
         const userInput = document.getElementById('userInput');
         const typingDiv = document.getElementById('typing');
 
-        // Helper: Add timeout to fetch
         async function fetchWithTimeout(url, options, timeout = API_TIMEOUT) {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -359,9 +317,7 @@
                 return response;
             } catch (error) {
                 clearTimeout(timeoutId);
-                if (error.name === 'AbortError') {
-                    throw new Error('Request timeout. Please try again.');
-                }
+                if (error.name === 'AbortError') throw new Error('Request timeout. Please try again.');
                 throw error;
             }
         }
@@ -370,33 +326,18 @@
         function speakText(text) {
             if (!autoSpeak) return;
             if (!text || text.length === 0) return;
-            
-            // Don't speak technical messages
             if (text.startsWith('IMAGE_URL:') || text.startsWith('VIDEO_URL:') || 
-                text.includes('✅') || text.includes('🎨') || text.includes('🎬')) {
-                return;
-            }
+                text.includes('✅') || text.includes('🎨') || text.includes('🎬')) return;
             
             let cleanText = text.replace(/[^\u0900-\u097F\sa-zA-Z0-9,।?.!]/g, '');
             cleanText = cleanText.replace(/\*/g, '').trim();
             if (cleanText.length === 0) return;
             
-            if (currentUtterance) {
-                try { speechSynthesis.cancel(); } catch(e) {}
-                currentUtterance = null;
-            }
-            
+            if (currentUtterance) { try { speechSynthesis.cancel(); } catch(e) {} currentUtterance = null; }
             currentUtterance = new SpeechSynthesisUtterance(cleanText);
             currentUtterance.lang = 'hi-IN';
             currentUtterance.rate = 0.9;
             currentUtterance.pitch = 1.0;
-            
-            try {
-                const voices = speechSynthesis.getVoices();
-                const hindiVoice = voices.find(v => v.lang === 'hi-IN' || v.lang.startsWith('hi'));
-                if (hindiVoice) currentUtterance.voice = hindiVoice;
-            } catch(e) {}
-            
             try { speechSynthesis.speak(currentUtterance); } catch(e) {}
         }
         
@@ -422,14 +363,12 @@
             recognition.lang = 'hi-IN';
             recognition.continuous = false;
             recognition.interimResults = false;
-            
             recognition.onstart = () => {
                 isRecognizing = true;
                 const micBtn = document.getElementById('micBtn');
                 micBtn.innerHTML = '🎤 सुन रहा हूँ...';
                 micBtn.classList.add('listening');
             };
-            
             recognition.onresult = (event) => {
                 const transcript = event.results[0][0].transcript;
                 if (transcript && transcript.trim().length > 0) {
@@ -438,14 +377,12 @@
                 }
                 recognition.stop();
             };
-            
             recognition.onerror = () => {
                 const micBtn = document.getElementById('micBtn');
                 micBtn.innerHTML = '🎤 बोलें';
                 micBtn.classList.remove('listening');
                 isRecognizing = false;
             };
-            
             recognition.onend = () => {
                 const micBtn = document.getElementById('micBtn');
                 micBtn.innerHTML = '🎤 बोलें';
@@ -455,19 +392,9 @@
         }
         
         function startVoiceInput() {
-            if (!recognition) {
-                alert('Chrome browser use करें।');
-                return;
-            }
-            if (isRecognizing) {
-                recognition.stop();
-                setTimeout(() => recognition.start(), 200);
-                return;
-            }
-            try {
-                userInput.value = '';
-                recognition.start();
-            } catch (e) {}
+            if (!recognition) { alert('Chrome browser use करें।'); return; }
+            if (isRecognizing) { recognition.stop(); setTimeout(() => recognition.start(), 200); return; }
+            try { userInput.value = ''; recognition.start(); } catch (e) {}
         }
 
         // ========== HELPER FUNCTIONS ==========
@@ -479,10 +406,7 @@
             img.src = imageUrl;
             img.className = 'image-message';
             img.onclick = () => window.open(imageUrl, '_blank');
-            img.onerror = () => {
-                console.log('Image load failed');
-                img.src = `https://placehold.co/1024x1024/4CAF50/white?text=${encodeURIComponent('Image Not Found')}`;
-            };
+            img.onerror = () => { img.src = `https://placehold.co/1024x1024/4CAF50/white?text=Image+Not+Found`; };
             container.appendChild(img);
         }
         
@@ -493,43 +417,18 @@
             video.controls = true;
             video.style.maxWidth = '100%';
             video.style.borderRadius = '12px';
-            video.onerror = () => {
-                console.log('Video load failed');
-                container.innerHTML += '<div style="color:red">❌ Video failed to load</div>';
-            };
+            video.onerror = () => { container.innerHTML += '<div style="color:red">❌ Video failed to load</div>'; };
             container.appendChild(video);
         }
         
-        // ✅ Fixed: Proper parameter order with backward compatibility
         function addMessage(text, isUser, options = {}) {
             const msgDiv = document.createElement('div');
-            
-            // Handle different call signatures for backward compatibility
-            let isImage = false;
-            let imageUrl = null;
-            let isVideo = false;
-            let videoUrl = null;
-            let isImagePreview = false;
-            let previewData = null;
-            
-            if (typeof options === 'boolean') {
-                // Old signature: addMessage(text, isUser, isImage, imageUrl, isVideo, videoUrl, isImagePreview, previewData)
-                const args = arguments;
-                isImage = args[2] || false;
-                imageUrl = args[3] || null;
-                isVideo = args[4] || false;
-                videoUrl = args[5] || null;
-                isImagePreview = args[6] || false;
-                previewData = args[7] || null;
-            } else {
-                // New signature with options object
-                isImage = options.isImage || false;
-                imageUrl = options.imageUrl || null;
-                isVideo = options.isVideo || false;
-                videoUrl = options.videoUrl || null;
-                isImagePreview = options.isImagePreview || false;
-                previewData = options.previewData || null;
-            }
+            let isImage = options.isImage || false;
+            let imageUrl = options.imageUrl || null;
+            let isVideo = options.isVideo || false;
+            let videoUrl = options.videoUrl || null;
+            let isImagePreview = options.isImagePreview || false;
+            let previewData = options.previewData || null;
             
             if (isImage && imageUrl) {
                 msgDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
@@ -553,20 +452,13 @@
             } else {
                 msgDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
                 msgDiv.textContent = text;
-                
                 if (!isUser && text && !text.startsWith('✅') && !text.startsWith('🎨') && !text.startsWith('🎬')) {
                     const speakerIcon = document.createElement('span');
                     speakerIcon.className = 'speak-icon';
                     speakerIcon.innerHTML = '🔊';
-                    speakerIcon.onclick = (e) => {
-                        e.stopPropagation();
-                        speakSpecificMessage(text);
-                    };
+                    speakerIcon.onclick = (e) => { e.stopPropagation(); speakSpecificMessage(text); };
                     msgDiv.appendChild(speakerIcon);
-                    
-                    if (autoSpeak) {
-                        setTimeout(() => speakText(text), 100);
-                    }
+                    if (autoSpeak) setTimeout(() => speakText(text), 100);
                 }
             }
             messagesDiv.appendChild(msgDiv);
@@ -594,155 +486,74 @@
             fileInput.click();
         }
         
-      async function sendImageForAnalysis() {
-    if (!pendingImageFile) return false;
-    const userQuestion = userInput.value.trim();
-    if (!userQuestion) {
-        addMessage('❌ कृपया सवाल लिखें।', false);
-        return false;
-    }
-    addMessage(userQuestion, true);
-    userInput.value = '';
-    showTyping(true);
-    
-    const formData = new FormData();
-    formData.append('image', pendingImageFile);
-    formData.append('message', userQuestion);
-    formData.append('bot', currentBot);
-    formData.append('sessionId', sessionId);
-    
-    try {
-        const response = await fetch(API_URL + '/api/analyze-image', {
-            method: 'POST',
-            body: formData
-        });
-        
-        // ✅ Check if response is OK
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Server error:', response.status, errorText);
-            throw new Error(`Server responded with ${response.status}`);
-        }
-        
-        const data = await response.json();
-        showTyping(false);
-        
-        // ✅ Debug log
-        console.log('Analysis response:', data);
-        
-        // ✅ Handle response correctly
-        if (data.analysis && data.analysis !== '✅ विश्लेषण पूरा हुआ!') {
-            addMessage(data.analysis, false);
-        } else if (data.error) {
-            addMessage('❌ त्रुटि: ' + data.error, false);
-        } else {
-            // Try to extract any meaningful text
-            const fallbackText = data.analysis || data.message || data.result;
-            if (fallbackText && fallbackText !== '✅ विश्लेषण पूरा हुआ!') {
-                addMessage(fallbackText, false);
-            } else {
-                addMessage('❌ विश्लेषण विफल रहा। कृपया पुनः प्रयास करें।', false);
+        async function sendImageForAnalysis() {
+            if (!pendingImageFile) return false;
+            const userQuestion = userInput.value.trim();
+            if (!userQuestion) {
+                addMessage('❌ कृपया सवाल लिखें।', false);
+                return false;
+            }
+            addMessage(userQuestion, true);
+            userInput.value = '';
+            showTyping(true);
+            
+            const formData = new FormData();
+            formData.append('image', pendingImageFile);
+            formData.append('message', userQuestion);
+            formData.append('bot', currentBot);
+            formData.append('sessionId', sessionId);
+            
+            try {
+                const response = await fetch(API_URL + '/api/analyze-image', { method: 'POST', body: formData });
+                if (!response.ok) throw new Error(`Server responded with ${response.status}`);
+                const data = await response.json();
+                showTyping(false);
+                console.log('Analysis response:', data);
+                
+                if (data.analysis && data.analysis !== '✅ विश्लेषण पूरा हुआ!') {
+                    addMessage(data.analysis, false);
+                } else if (data.error) {
+                    addMessage('❌ ' + data.error, false);
+                } else {
+                    addMessage('❌ विश्लेषण विफल रहा। कृपया पुनः प्रयास करें।', false);
+                }
+                pendingImageFile = null;
+                userInput.placeholder = "अपना सवाल लिखें...";
+                return true;
+            } catch (error) {
+                showTyping(false);
+                console.error('Analysis error:', error);
+                addMessage('❌ त्रुटि: ' + error.message, false);
+                return false;
             }
         }
-        
-        pendingImageFile = null;
-        userInput.placeholder = "अपना सवाल लिखें...";
-        return true;
-    } catch (error) {
-        showTyping(false);
-        console.error('Analysis error:', error);
-        addMessage('❌ त्रुटि: ' + error.message, false);
-        return false;
-    }
-}    
-     
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Server error:', response.status, errorText);
-            throw new Error(`Server responded with ${response.status}`);
-        }
-        
-        const data = await response.json();
-        showTyping(false);
-        
-        // ✅ Log the response for debugging
-        console.log('Analysis response:', data);
-        
-        // ✅ Check both 'analysis' and 'error' fields
-        if (data.analysis && data.analysis !== '✅ विश्लेषण पूरा हुआ!') {
-            addMessage(data.analysis, false);
-        } else if (data.error) {
-            addMessage('❌ ' + data.error, false);
-        } else {
-            addMessage('❌ विश्लेषण विफल रहा। कृपया पुनः प्रयास करें।', false);
-        }
-        
-        pendingImageFile = null;
-        userInput.placeholder = "अपना सवाल लिखें...";
-        return true;
-    } catch (error) {
-        showTyping(false);
-        console.error('Analysis error:', error);
-        addMessage('❌ त्रुटि: ' + error.message, false);
-        return false;
-    }
-}
 
         // ========== CHAT MESSAGE ==========
         async function sendMessage() {
-            if (pendingImageFile) {
-                await sendImageForAnalysis();
-                return;
-            }
+            if (pendingImageFile) { await sendImageForAnalysis(); return; }
             const text = userInput.value.trim();
             if (!text) return;
             addMessage(text, true);
             userInput.value = '';
             showTyping(true);
-            
             try {
-                let endpoint;
-                switch(currentBot) {
-                    case 'SahcharAssistant':
-                        endpoint = '/chat-assistant';
-                        break;
-                    case 'SuperSahchar':
-                        endpoint = '/chat-nvidia';
-                        break;
-                    default:
-                        endpoint = '/chat';
-                }
-                
+                let endpoint = currentBot === 'SahcharAssistant' ? '/chat-assistant' : (currentBot === 'SuperSahchar' ? '/chat-nvidia' : '/chat');
                 const response = await fetchWithTimeout(API_URL + endpoint, {
                     method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json', 
-                        'X-Session-Id': sessionId
-                    },
-                    body: JSON.stringify({ 
-                        message: text, 
-                        sessionId: sessionId, 
-                        bot: currentBot 
-                    })
+                    headers: { 'Content-Type': 'application/json', 'X-Session-Id': sessionId },
+                    body: JSON.stringify({ message: text, sessionId: sessionId, bot: currentBot })
                 });
                 const data = await response.json();
                 showTyping(false);
-                const reply = data.reply || data.message || "क्षमा करें, उत्तर नहीं मिला। 🙏";
-                addMessage(reply, false);
+                addMessage(data.reply || data.message || "क्षमा करें, उत्तर नहीं मिला। 🙏", false);
             } catch (error) {
                 showTyping(false);
-                console.error('Chat error:', error);
-                let errorMsg = "❌ नेटवर्क त्रुटि! पुनः प्रयास करें। 🙏";
-                if (error.message.includes('timeout')) {
-                    errorMsg = "❌ सर्वर समय पर जवाब नहीं दे रहा। कृपया बाद में प्रयास करें।";
-                }
+                let errorMsg = error.message.includes('timeout') ? "❌ सर्वर समय पर जवाब नहीं दे रहा।" : "❌ नेटवर्क त्रुटि! पुनः प्रयास करें।";
                 addMessage(errorMsg, false);
             }
         }
         
-        function handleKeyPress(event) {
-            if (event.key === 'Enter') sendMessage();
-        }
+        function handleKeyPress(event) { if (event.key === 'Enter') sendMessage(); }
 
         // ========== IMAGE GENERATION ==========
         function showImageGenModal() { document.getElementById('imageModal').style.display = 'flex'; }
@@ -754,17 +565,14 @@
             closeImageModal();
             addMessage(`🎨 ${prompt}`, true);
             showTyping(true);
-            
             try {
                 const response = await fetchWithTimeout(API_URL + '/api/image/generate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ prompt: prompt, bot: currentBot })
                 });
                 const data = await response.json();
                 showTyping(false);
                 if (data.imageUrl) {
-                    // ✅ Both text message and image are displayed
                     addMessage('✅ ये रही आपकी इमेज:', false);
                     addMessage('', false, { isImage: true, imageUrl: data.imageUrl });
                 } else {
@@ -772,7 +580,6 @@
                 }
             } catch (error) {
                 showTyping(false);
-                console.error('Image generation error:', error);
                 addMessage('❌ त्रुटि: ' + (error.message || 'इमेज नहीं बन पाई।'), false);
             }
             document.getElementById('imagePrompt').value = '';
@@ -788,41 +595,23 @@
             closeVideoModal();
             addMessage(`🎬 ${prompt}`, true);
             showTyping(true);
-            
             try {
-                // ✅ Add timeout handling for slow video generation
                 const response = await fetchWithTimeout(API_URL + '/api/video/generate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ prompt: prompt, bot: currentBot })
-                }, 90000); // 90 seconds timeout for video
-                
+                }, 90000);
                 const data = await response.json();
                 showTyping(false);
-                
-                // ✅ Validate response structure
-                if (data && data.message) {
-                    addMessage(data.message, false);
-                }
-                
-                // ✅ Check if videoUrl exists and is valid
+                if (data && data.message) addMessage(data.message, false);
                 if (data.videoUrl && data.videoUrl.startsWith('http')) {
                     addMessage('✅ ये रहा आपका वीडियो:', false);
                     addMessage('', false, { isVideo: true, videoUrl: data.videoUrl });
-                } else if (data.success === false || data.error) {
-                    addMessage('❌ ' + (data.error || 'वीडियो नहीं बन पाई।'), false);
                 } else {
                     addMessage('❌ वीडियो नहीं बन पाई। कृपया पुनः प्रयास करें।', false);
                 }
             } catch (error) {
                 showTyping(false);
-                console.error('Video generation error:', error);
-                let errorMsg = "❌ वीडियो नहीं बन पाई। ";
-                if (error.message.includes('timeout')) {
-                    errorMsg = "⏰ वीडियो बनाने में बहुत समय लग रहा है। कृपया बाद में प्रयास करें।";
-                } else {
-                    errorMsg += error.message || "पुनः प्रयास करें।";
-                }
+                let errorMsg = error.message.includes('timeout') ? "⏰ वीडियो बनाने में बहुत समय लग रहा है।" : "❌ वीडियो नहीं बन पाई।";
                 addMessage(errorMsg, false);
             }
             document.getElementById('videoPrompt').value = '';
@@ -835,28 +624,17 @@
         function switchBot(botName) {
             currentBot = botName;
             const botSelector = document.getElementById('botSelector');
-            if (botName === 'SahcharAI') {
-                botSelector.innerHTML = '🤖 SahcharAI ▼';
-                document.title = 'SahcharAI - Web Assistant';
-            } else if (botName === 'SahcharAssistant') {
-                botSelector.innerHTML = '👨‍💼 SahcharAssistant ▼';
-                document.title = 'SahcharAssistant - Web Assistant';
-            } else {
-                botSelector.innerHTML = '⭐ SuperSahchar ▼';
-                document.title = 'SuperSahchar - Web Assistant';
-            }
+            if (botName === 'SahcharAI') botSelector.innerHTML = '🤖 SahcharAI ▼';
+            else if (botName === 'SahcharAssistant') botSelector.innerHTML = '👨‍💼 SahcharAssistant ▼';
+            else botSelector.innerHTML = '⭐ SuperSahchar ▼';
             closeBotModal();
             addMessage(`नमस्ते! मैं ${botName} हूँ। 🙏`, false);
         }
         
         document.getElementById('botSelector').onclick = showBotSelector;
         
-        // Log session info
-        console.log('🌐 Web Client with Firebase Backend');
+        console.log('🌐 Web Client Ready');
         console.log('📡 API URL:', API_URL);
-        console.log('🆔 Session ID:', sessionId.substring(0, 8) + '...');
-        
-        // Preload TTS voices
         setTimeout(() => { speakText('नमस्ते'); }, 1000);
     </script>
 </body>
