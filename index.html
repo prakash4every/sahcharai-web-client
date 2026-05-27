@@ -467,66 +467,79 @@
 
         // ========== IMAGE ANALYSIS ==========
         function selectImageForAnalysis() {
-            const fileInput = document.getElementById('imageUpload');
-            fileInput.onchange = function(e) {
-                const file = e.target.files[0];
-                if (file) {
-                    pendingImageFile = file;
-                    const reader = new FileReader();
-                    reader.onload = function(event) {
-                        addMessage('📷 फोटो चयनित:', true, { isImagePreview: true, previewData: event.target.result });
-                        userInput.focus();
-                        userInput.placeholder = "इस फोटो के बारे में क्या जानना चाहते हैं? लिखें...";
-                        addMessage('✅ फोटो अपलोड हो गई। अब लिखकर भेजें।', false);
-                    };
-                    reader.readAsDataURL(file);
-                }
-                fileInput.value = '';
+    const fileInput = document.getElementById('imageUpload');
+    fileInput.onchange = function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            // ✅ Check file size (max 1MB)
+            if (file.size > 1 * 1024 * 1024) {
+                alert('❌ इमेज 1MB से छोटी होनी चाहिए। कृपया कोई और फोटो चुनें।');
+                return;
+            }
+            
+            pendingImageFile = file;
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                addMessage('📷 फोटो चयनित:', true, { isImagePreview: true, previewData: event.target.result });
+                userInput.focus();
+                userInput.placeholder = "इस फोटो के बारे में क्या जानना चाहते हैं? लिखें...";
+                addMessage('✅ फोटो अपलोड हो गई। अब लिखकर भेजें।', false);
             };
-            fileInput.click();
+            reader.readAsDataURL(file);
         }
+        fileInput.value = '';
+    };
+    fileInput.click();
+}
         
         async function sendImageForAnalysis() {
-            if (!pendingImageFile) return false;
-            const userQuestion = userInput.value.trim();
-            if (!userQuestion) {
-                addMessage('❌ कृपया सवाल लिखें।', false);
-                return false;
-            }
-            addMessage(userQuestion, true);
-            userInput.value = '';
-            showTyping(true);
-            
-            const formData = new FormData();
-            formData.append('image', pendingImageFile);
-            formData.append('message', userQuestion);
-            formData.append('bot', currentBot);
-            formData.append('sessionId', sessionId);
-            
-            try {
-                const response = await fetch(API_URL + '/api/analyze-image', { method: 'POST', body: formData });
-                if (!response.ok) throw new Error(`Server responded with ${response.status}`);
-                const data = await response.json();
-                showTyping(false);
-                console.log('Analysis response:', data);
-                
-                if (data.analysis && data.analysis !== '✅ विश्लेषण पूरा हुआ!') {
-                    addMessage(data.analysis, false);
-                } else if (data.error) {
-                    addMessage('❌ ' + data.error, false);
-                } else {
-                    addMessage('❌ विश्लेषण विफल रहा। कृपया पुनः प्रयास करें।', false);
-                }
-                pendingImageFile = null;
-                userInput.placeholder = "अपना सवाल लिखें...";
-                return true;
-            } catch (error) {
-                showTyping(false);
-                console.error('Analysis error:', error);
-                addMessage('❌ त्रुटि: ' + error.message, false);
-                return false;
-            }
+    if (!pendingImageFile) return false;
+    const userQuestion = userInput.value.trim();
+    if (!userQuestion) {
+        addMessage('❌ कृपया सवाल लिखें।', false);
+        return false;
+    }
+    addMessage(userQuestion, true);
+    userInput.value = '';
+    showTyping(true);
+    
+    const formData = new FormData();
+    formData.append('image', pendingImageFile);
+    formData.append('message', userQuestion);
+    formData.append('bot', currentBot);
+    formData.append('sessionId', sessionId);
+    
+    try {
+        const response = await fetch(API_URL + '/api/analyze-image', {
+            method: 'POST',
+            headers: {
+                'Expect': '100-continue'  // ✅ Add this header
+            },
+            body: formData
+        });
+        
+        if (!response.ok) throw new Error(`Server responded with ${response.status}`);
+        const data = await response.json();
+        showTyping(false);
+        console.log('Analysis response:', data);
+        
+        if (data.analysis && data.analysis !== '✅ विश्लेषण पूरा हुआ!') {
+            addMessage(data.analysis, false);
+        } else if (data.error) {
+            addMessage('❌ ' + data.error, false);
+        } else {
+            addMessage('❌ विश्लेषण विफल रहा। कृपया पुनः प्रयास करें।', false);
         }
+        pendingImageFile = null;
+        userInput.placeholder = "अपना सवाल लिखें...";
+        return true;
+    } catch (error) {
+        showTyping(false);
+        console.error('Analysis error:', error);
+        addMessage('❌ त्रुटि: ' + error.message, false);
+        return false;
+    }
+}
 
         // ========== CHAT MESSAGE ==========
         async function sendMessage() {
