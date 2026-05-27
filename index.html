@@ -467,130 +467,98 @@
 
         // ========== IMAGE ANALYSIS ==========
         function selectImageForAnalysis() {
-    const fileInput = document.getElementById('imageUpload');
-    fileInput.onchange = function(e) {
-        const file = e.target.files[0];
-        if (file) {
-            // ✅ Check file size (max 1MB)
-            if (file.size > 1 * 1024 * 1024) {
-                alert('❌ इमेज 1MB से छोटी होनी चाहिए। कृपया कोई और फोटो चुनें।');
-                return;
+            const fileInput = document.getElementById('imageUpload');
+            fileInput.onchange = function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    if (file.size > 2 * 1024 * 1024) {
+                        alert('❌ इमेज 2MB से छोटी होनी चाहिए। कृपया कोई और फोटो चुनें।');
+                        return;
+                    }
+                    pendingImageFile = file;
+                    const reader = new FileReader();
+                    reader.onload = function(event) {
+                        addMessage('📷 फोटो चयनित:', true, { isImagePreview: true, previewData: event.target.result });
+                        userInput.focus();
+                        userInput.placeholder = "इस फोटो के बारे में क्या जानना चाहते हैं? लिखें...";
+                        addMessage('✅ फोटो अपलोड हो गई। अब लिखकर भेजें।', false);
+                    };
+                    reader.readAsDataURL(file);
+                }
+                fileInput.value = '';
+            };
+            fileInput.click();
+        }
+        
+        // ✅ NEW: Base64 method for image analysis (Fixes 400 error)
+        async function sendImageForAnalysis() {
+            if (!pendingImageFile) return false;
+            
+            const userQuestion = userInput.value.trim();
+            if (!userQuestion) {
+                addMessage('❌ कृपया सवाल लिखें।', false);
+                return false;
             }
             
-            pendingImageFile = file;
+            addMessage(userQuestion, true);
+            userInput.value = '';
+            showTyping(true);
+            
+            // Convert to base64
             const reader = new FileReader();
-            reader.onload = function(event) {
-                addMessage('📷 फोटो चयनित:', true, { isImagePreview: true, previewData: event.target.result });
-                userInput.focus();
-                userInput.placeholder = "इस फोटो के बारे में क्या जानना चाहते हैं? लिखें...";
-                addMessage('✅ फोटो अपलोड हो गई। अब लिखकर भेजें।', false);
-            };
-            reader.readAsDataURL(file);
-        }
-        fileInput.value = '';
-    };
-    fileInput.click();
-}
-        
-       async function sendImageForAnalysis() {
-    if (!pendingImageFile) return false;
-    
-    const userQuestion = userInput.value.trim();
-    if (!userQuestion) {
-        addMessage('❌ कृपया सवाल लिखें।', false);
-        return false;
-    }
-    
-    addMessage(userQuestion, true);
-    userInput.value = '';
-    showTyping(true);
-    
-    // ✅ CRITICAL FIX: Only append the file, no extra headers
-    const formData = new FormData();
-    formData.append('image', pendingImageFile);
-    formData.append('message', userQuestion);
-    formData.append('bot', currentBot);
-    formData.append('sessionId', sessionId);
-    
-    try {
-        // ✅ IMPORTANT: Do NOT set Content-Type header
-        const response = await fetch(API_URL + '/api/analyze-image', {
-            method: 'POST',
-            body: formData
-            // ❌ NO 'Content-Type' header here - browser will set it automatically with boundary
-        });
-        
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Server error:', response.status, errorText);
-            throw new Error(`Server responded with ${response.status}`);
-        }
-        
-        const data = await response.json();
-        showTyping(false);
-        console.log('Analysis response:', data);
-        
-        if (data.analysis && data.analysis !== '✅ विश्लेषण पूरा हुआ!') {
-            addMessage(data.analysis, false);
-        } else if (data.error) {
-            addMessage('❌ ' + data.error, false);
-        } else {
-            addMessage('❌ विश्लेषण विफल रहा। कृपया पुनः प्रयास करें।', false);
-        }
-        
-        pendingImageFile = null;
-        userInput.placeholder = "अपना सवाल लिखें...";
-        return true;
-    } catch (error) {
-        showTyping(false);
-        console.error('Analysis error:', error);
-        addMessage('❌ त्रुटि: ' + error.message, false);
-        return false;
-    }
-}
-// ✅ Add image compression function
-async function compressImage(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = (event) => {
-            const img = new Image();
-            img.src = event.target.result;
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
+            reader.readAsDataURL(pendingImageFile);
+            
+            reader.onload = async function() {
+                const base64Image = reader.result.split(',')[1];
                 
-                // Resize to max 800px width/height
-                let width = img.width;
-                let height = img.height;
-                const maxSize = 800;
-                
-                if (width > height && width > maxSize) {
-                    height = (height * maxSize) / width;
-                    width = maxSize;
-                } else if (height > maxSize) {
-                    width = (width * maxSize) / height;
-                    height = maxSize;
-                }
-                
-                canvas.width = width;
-                canvas.height = height;
-                ctx.drawImage(img, 0, 0, width, height);
-                
-                canvas.toBlob((blob) => {
-                    const compressedFile = new File([blob], file.name, {
-                        type: 'image/jpeg',
-                        lastModified: Date.now()
+                try {
+                    const response = await fetch(API_URL + '/api/analyze-image-base64', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            image: base64Image,
+                            message: userQuestion,
+                            bot: currentBot,
+                            sessionId: sessionId,
+                            filename: pendingImageFile.name
+                        })
                     });
-                    console.log(`Compressed: ${(file.size / 1024).toFixed(2)}KB → ${(blob.size / 1024).toFixed(2)}KB`);
-                    resolve(compressedFile);
-                }, 'image/jpeg', 0.7);
+                    
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error('Server error:', response.status, errorText);
+                        throw new Error(`Server responded with ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    showTyping(false);
+                    console.log('Analysis response:', data);
+                    
+                    if (data.analysis && data.analysis !== '✅ विश्लेषण पूरा हुआ!') {
+                        addMessage(data.analysis, false);
+                    } else if (data.error) {
+                        addMessage('❌ ' + data.error, false);
+                    } else {
+                        addMessage('❌ विश्लेषण विफल रहा। कृपया पुनः प्रयास करें।', false);
+                    }
+                    
+                    pendingImageFile = null;
+                    userInput.placeholder = "अपना सवाल लिखें...";
+                } catch (error) {
+                    showTyping(false);
+                    console.error('Analysis error:', error);
+                    addMessage('❌ त्रुटि: ' + error.message, false);
+                }
             };
-            img.onerror = reject;
-        };
-        reader.onerror = reject;
-    });
-}
+            
+            reader.onerror = function() {
+                showTyping(false);
+                addMessage('❌ इमेज पढ़ने में त्रुटि।', false);
+            };
+            
+            return true;
+        }
+
         // ========== CHAT MESSAGE ==========
         async function sendMessage() {
             if (pendingImageFile) { await sendImageForAnalysis(); return; }
