@@ -594,42 +594,99 @@
             fileInput.click();
         }
         
-        async function sendImageForAnalysis() {
-            if (!pendingImageFile) return false;
-            const userQuestion = userInput.value.trim();
-            if (!userQuestion) {
-                addMessage('❌ कृपया सवाल लिखें।', false);
-                return false;
-            }
-            addMessage(userQuestion, true);
-            userInput.value = '';
-            showTyping(true);
-            
-            const formData = new FormData();
-            formData.append('image', pendingImageFile);
-            formData.append('message', userQuestion);
-            formData.append('bot', currentBot);
-            formData.append('sessionId', sessionId);
-            
-            try {
-                const response = await fetchWithTimeout(API_URL + '/api/analyze-image', {
-                    method: 'POST',
-                    body: formData
-                });
-                const data = await response.json();
-                showTyping(false);
-                const analysis = data.analysis || '✅ विश्लेषण पूरा हुआ!';
-                addMessage(analysis, false);
-                pendingImageFile = null;
-                userInput.placeholder = "अपना सवाल लिखें...";
-                return true;
-            } catch (error) {
-                showTyping(false);
-                console.error('Analysis error:', error);
-                addMessage('❌ त्रुटि: ' + (error.message || 'पुनः प्रयास करें।'), false);
-                return false;
+      async function sendImageForAnalysis() {
+    if (!pendingImageFile) return false;
+    const userQuestion = userInput.value.trim();
+    if (!userQuestion) {
+        addMessage('❌ कृपया सवाल लिखें।', false);
+        return false;
+    }
+    addMessage(userQuestion, true);
+    userInput.value = '';
+    showTyping(true);
+    
+    const formData = new FormData();
+    formData.append('image', pendingImageFile);
+    formData.append('message', userQuestion);
+    formData.append('bot', currentBot);
+    formData.append('sessionId', sessionId);
+    
+    try {
+        const response = await fetch(API_URL + '/api/analyze-image', {
+            method: 'POST',
+            body: formData
+        });
+        
+        // ✅ Check if response is OK
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Server error:', response.status, errorText);
+            throw new Error(`Server responded with ${response.status}`);
+        }
+        
+        const data = await response.json();
+        showTyping(false);
+        
+        // ✅ Debug log
+        console.log('Analysis response:', data);
+        
+        // ✅ Handle response correctly
+        if (data.analysis && data.analysis !== '✅ विश्लेषण पूरा हुआ!') {
+            addMessage(data.analysis, false);
+        } else if (data.error) {
+            addMessage('❌ त्रुटि: ' + data.error, false);
+        } else {
+            // Try to extract any meaningful text
+            const fallbackText = data.analysis || data.message || data.result;
+            if (fallbackText && fallbackText !== '✅ विश्लेषण पूरा हुआ!') {
+                addMessage(fallbackText, false);
+            } else {
+                addMessage('❌ विश्लेषण विफल रहा। कृपया पुनः प्रयास करें।', false);
             }
         }
+        
+        pendingImageFile = null;
+        userInput.placeholder = "अपना सवाल लिखें...";
+        return true;
+    } catch (error) {
+        showTyping(false);
+        console.error('Analysis error:', error);
+        addMessage('❌ त्रुटि: ' + error.message, false);
+        return false;
+    }
+}    
+     
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Server error:', response.status, errorText);
+            throw new Error(`Server responded with ${response.status}`);
+        }
+        
+        const data = await response.json();
+        showTyping(false);
+        
+        // ✅ Log the response for debugging
+        console.log('Analysis response:', data);
+        
+        // ✅ Check both 'analysis' and 'error' fields
+        if (data.analysis && data.analysis !== '✅ विश्लेषण पूरा हुआ!') {
+            addMessage(data.analysis, false);
+        } else if (data.error) {
+            addMessage('❌ ' + data.error, false);
+        } else {
+            addMessage('❌ विश्लेषण विफल रहा। कृपया पुनः प्रयास करें।', false);
+        }
+        
+        pendingImageFile = null;
+        userInput.placeholder = "अपना सवाल लिखें...";
+        return true;
+    } catch (error) {
+        showTyping(false);
+        console.error('Analysis error:', error);
+        addMessage('❌ त्रुटि: ' + error.message, false);
+        return false;
+    }
+}
 
         // ========== CHAT MESSAGE ==========
         async function sendMessage() {
