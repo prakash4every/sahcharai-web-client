@@ -505,20 +505,19 @@
     userInput.value = '';
     showTyping(true);
     
-    // ✅ Compress image before upload
-    const compressedFile = await compressImage(pendingImageFile);
-    
+    // ✅ फाइल का साइज़ कम करने और उसे सही फॉर्मेट में भेजने के लिए
     const formData = new FormData();
-    formData.append('image', compressedFile);
+    formData.append('image', pendingImageFile);
     formData.append('message', userQuestion);
     formData.append('bot', currentBot);
     formData.append('sessionId', sessionId);
     
     try {
+        // ✅ यहाँ सबसे अहम बदलाव: Content-Type हेडर को हटाया गया है
         const response = await fetch(API_URL + '/api/analyze-image', {
             method: 'POST',
             body: formData
-            // ❌ Don't set Content-Type header - browser handles it
+            // ⚠️ 'Content-Type' हेडर मत डालें! ब्राउज़र को खुद यह सेट करने दें।
         });
         
         if (!response.ok) {
@@ -529,6 +528,7 @@
         
         const data = await response.json();
         showTyping(false);
+        console.log('Analysis response:', data);
         
         if (data.analysis && data.analysis !== '✅ विश्लेषण पूरा हुआ!') {
             addMessage(data.analysis, false);
@@ -541,7 +541,6 @@
         pendingImageFile = null;
         userInput.placeholder = "अपना सवाल लिखें...";
         return true;
-        
     } catch (error) {
         showTyping(false);
         console.error('Analysis error:', error);
