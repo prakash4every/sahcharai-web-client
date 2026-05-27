@@ -492,7 +492,7 @@
     fileInput.click();
 }
         
-        async function sendImageForAnalysis() {
+       async function sendImageForAnalysis() {
     if (!pendingImageFile) return false;
     
     const userQuestion = userInput.value.trim();
@@ -505,7 +505,7 @@
     userInput.value = '';
     showTyping(true);
     
-    // ✅ फाइल का साइज़ कम करने और उसे सही फॉर्मेट में भेजने के लिए
+    // ✅ CRITICAL FIX: Only append the file, no extra headers
     const formData = new FormData();
     formData.append('image', pendingImageFile);
     formData.append('message', userQuestion);
@@ -513,11 +513,11 @@
     formData.append('sessionId', sessionId);
     
     try {
-        // ✅ यहाँ सबसे अहम बदलाव: Content-Type हेडर को हटाया गया है
+        // ✅ IMPORTANT: Do NOT set Content-Type header
         const response = await fetch(API_URL + '/api/analyze-image', {
             method: 'POST',
             body: formData
-            // ⚠️ 'Content-Type' हेडर मत डालें! ब्राउज़र को खुद यह सेट करने दें।
+            // ❌ NO 'Content-Type' header here - browser will set it automatically with boundary
         });
         
         if (!response.ok) {
@@ -548,7 +548,6 @@
         return false;
     }
 }
-
 // ✅ Add image compression function
 async function compressImage(file) {
     return new Promise((resolve, reject) => {
