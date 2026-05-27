@@ -127,6 +127,12 @@
             margin-top: 8px;
             cursor: pointer;
         }
+        .video-message {
+            max-width: 280px;
+            border-radius: 12px;
+            margin: 5px 0;
+            cursor: pointer;
+        }
         .typing-indicator {
             background: white;
             padding: 12px 16px;
@@ -170,7 +176,12 @@
             border-radius: 28px;
             cursor: pointer;
         }
-        .action-buttons { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
         .action-btn {
             background: #f0f0f0;
             border: none;
@@ -186,6 +197,8 @@
         .mic-btn { background: #4a148c; color: white; }
         .mic-btn:hover { background: #6a1b9a; }
         .mic-btn.listening { background: #4caf50; animation: pulse 1s infinite; }
+        .video-btn { background: #ff5722; color: white; }
+        .video-btn:hover { background: #e64a19; }
         @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
         .modal {
             display: none;
@@ -213,13 +226,15 @@
             border: 1px solid #ddd;
             border-radius: 12px;
         }
-        .modal-buttons { display: flex; gap: 10px; justify-content: flex-end; }
+        .modal-buttons { display: flex; gap: 10px; justify-content: flex-end; margin-top: 15px; }
         .modal-buttons button {
             padding: 8px 16px;
             border: none;
             border-radius: 20px;
             cursor: pointer;
         }
+        .modal-buttons button:first-child { background: #667eea; color: white; }
+        .modal-buttons button:last-child { background: #ccc; }
         .footer {
             text-align: center;
             padding: 8px;
@@ -263,6 +278,7 @@
             <div class="action-buttons">
                 <button class="action-btn mic-btn" id="micBtn" onclick="startVoiceInput()">🎤 बोलें</button>
                 <button class="action-btn" onclick="showImageGenModal()">🎨 इमेज बनाएं</button>
+                <button class="action-btn" onclick="showVideoGenModal()">🎬 वीडियो बनाएं</button>
                 <button class="action-btn" id="photoAnalysisBtn" onclick="selectImageForAnalysis()">📷 फोटो विश्लेषण</button>
                 <input type="file" id="imageUpload" accept="image/*" style="display:none">
             </div>
@@ -288,7 +304,7 @@
     <div class="modal" id="imageModal">
         <div class="modal-content">
             <h3>🎨 इमेज बनाएं</h3>
-            <input type="text" id="imagePrompt" placeholder="तस्वीर का विवरण लिखें...">
+            <input type="text" id="imagePrompt" placeholder="तस्वीर का विवरण लिखें... (हिंदी में भी लिख सकते हैं)">
             <div class="modal-buttons">
                 <button onclick="generateImage()">बनाएं</button>
                 <button onclick="closeImageModal()">रद्द करें</button>
@@ -296,15 +312,22 @@
         </div>
     </div>
 
+    <!-- Video Generation Modal -->
+    <div class="modal" id="videoModal">
+        <div class="modal-content">
+            <h3>🎬 वीडियो बनाएं (डेमो)</h3>
+            <input type="text" id="videoPrompt" placeholder="वीडियो का विवरण लिखें...">
+            <div class="modal-buttons">
+                <button onclick="generateVideo()">बनाएं</button>
+                <button onclick="closeVideoModal()">रद्द करें</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // ========== CONFIGURATION ==========
-        // 🔥 NEW: Firebase Backend URL (Primary)
-        const FIREBASE_API_URL = 'https://api-5n6fh3d24a-uc.a.run.app';
-        // 🎙️ Legacy Render URL (fallback or if needed)
-        const RENDER_API_URL = 'https://sahchar-ai-backend.onrender.com';
-        
-        // Use Firebase URL as primary
-        const API_URL = FIREBASE_API_URL;
+        // 🔥 Firebase Backend URL
+        const API_URL = 'https://api-5n6fh3d24a-uc.a.run.app';
         
         let currentBot = 'SahcharAI';
         
@@ -332,6 +355,9 @@
         function speakText(text) {
             if (!autoSpeak) return;
             if (!text || text.length === 0) return;
+            
+            // Don't speak image/video URLs
+            if (text.startsWith('IMAGE_URL:') || text.startsWith('VIDEO_URL:')) return;
             
             let cleanText = text.replace(/[^\u0900-\u097F\sa-zA-Z0-9,।?.!]/g, '');
             cleanText = cleanText.replace(/\*/g, '').trim();
@@ -446,11 +472,25 @@
             container.appendChild(img);
         }
         
-        function addMessage(text, isUser, isImage = false, imageUrl = null, isImagePreview = false, previewData = null) {
+        function displayVideo(videoUrl, container) {
+            const video = document.createElement('video');
+            video.src = videoUrl;
+            video.className = 'video-message';
+            video.controls = true;
+            video.style.maxWidth = '100%';
+            video.style.borderRadius = '12px';
+            container.appendChild(video);
+        }
+        
+        function addMessage(text, isUser, isImage = false, imageUrl = null, isVideo = false, videoUrl = null, isImagePreview = false, previewData = null) {
             const msgDiv = document.createElement('div');
-            if (isImage) {
+            
+            if (isImage && imageUrl) {
                 msgDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
                 displayImage(imageUrl, msgDiv);
+            } else if (isVideo && videoUrl) {
+                msgDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+                displayVideo(videoUrl, msgDiv);
             } else if (isImagePreview && previewData) {
                 msgDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
                 const img = document.createElement('img');
@@ -468,7 +508,7 @@
                 msgDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
                 msgDiv.textContent = text;
                 
-                if (!isUser) {
+                if (!isUser && !text.startsWith('IMAGE_URL:') && !text.startsWith('VIDEO_URL:')) {
                     const speakerIcon = document.createElement('span');
                     speakerIcon.className = 'speak-icon';
                     speakerIcon.innerHTML = '🔊';
@@ -496,7 +536,7 @@
                     pendingImageFile = file;
                     const reader = new FileReader();
                     reader.onload = function(event) {
-                        addMessage('📷 फोटो चयनित:', true, false, null, true, event.target.result);
+                        addMessage('📷 फोटो चयनित:', true, false, null, false, null, true, event.target.result);
                         userInput.focus();
                         userInput.placeholder = "इस फोटो के बारे में क्या जानना चाहते हैं? लिखें...";
                         addMessage('✅ फोटो अपलोड हो गई। अब लिखकर भेजें।', false);
@@ -544,7 +584,7 @@
             }
         }
 
-        // ========== CHAT MESSAGE (WITH SESSION ID) ==========
+        // ========== CHAT MESSAGE ==========
         async function sendMessage() {
             if (pendingImageFile) {
                 await sendImageForAnalysis();
@@ -595,7 +635,7 @@
             if (event.key === 'Enter') sendMessage();
         }
 
-        // ========== IMAGE GENERATION (with Firebase) ==========
+        // ========== IMAGE GENERATION ==========
         function showImageGenModal() { document.getElementById('imageModal').style.display = 'flex'; }
         function closeImageModal() { document.getElementById('imageModal').style.display = 'none'; }
         
@@ -610,13 +650,12 @@
                 const response = await fetch(API_URL + '/api/image/generate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ prompt: prompt })
+                    body: JSON.stringify({ prompt: prompt, bot: currentBot })
                 });
                 const data = await response.json();
                 showTyping(false);
                 if (data.imageUrl) {
-                    addMessage('ये रही इमेज:', false);
-                    addMessage('', false, true, data.imageUrl);
+                    addMessage('ये रही इमेज:', false, true, data.imageUrl);
                 } else {
                     addMessage('❌ इमेज नहीं बन पाई।', false);
                 }
@@ -627,6 +666,42 @@
             document.getElementById('imagePrompt').value = '';
         }
 
+        // ========== VIDEO GENERATION ==========
+        function showVideoGenModal() { document.getElementById('videoModal').style.display = 'flex'; }
+        function closeVideoModal() { document.getElementById('videoModal').style.display = 'none'; }
+        
+        async function generateVideo() {
+            const prompt = document.getElementById('videoPrompt').value.trim();
+            if (!prompt) { alert('प्रॉम्प्ट लिखें'); return; }
+            closeVideoModal();
+            addMessage(`🎬 ${prompt}`, true);
+            showTyping(true);
+            
+            try {
+                const response = await fetch(API_URL + '/api/video/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: prompt, bot: currentBot })
+                });
+                const data = await response.json();
+                showTyping(false);
+                
+                if (data.message) {
+                    addMessage(data.message, false);
+                }
+                
+                if (data.videoUrl) {
+                    addMessage('ये रहा वीडियो:', false, false, null, true, data.videoUrl);
+                } else {
+                    addMessage('❌ वीडियो नहीं बन पाई।', false);
+                }
+            } catch (error) {
+                showTyping(false);
+                addMessage('❌ Error: ' + error.message, false);
+            }
+            document.getElementById('videoPrompt').value = '';
+        }
+
         // ========== BOT SWITCHING ==========
         function showBotSelector() { document.getElementById('botModal').style.display = 'flex'; }
         function closeBotModal() { document.getElementById('botModal').style.display = 'none'; }
@@ -634,9 +709,16 @@
         function switchBot(botName) {
             currentBot = botName;
             const botSelector = document.getElementById('botSelector');
-            if (botName === 'SahcharAI') botSelector.innerHTML = '🤖 SahcharAI ▼';
-            else if (botName === 'SahcharAssistant') botSelector.innerHTML = '👨‍💼 SahcharAssistant ▼';
-            else botSelector.innerHTML = '⭐ SuperSahchar ▼';
+            if (botName === 'SahcharAI') {
+                botSelector.innerHTML = '🤖 SahcharAI ▼';
+                document.title = 'SahcharAI - Web Assistant';
+            } else if (botName === 'SahcharAssistant') {
+                botSelector.innerHTML = '👨‍💼 SahcharAssistant ▼';
+                document.title = 'SahcharAssistant - Web Assistant';
+            } else {
+                botSelector.innerHTML = '⭐ SuperSahchar ▼';
+                document.title = 'SuperSahchar - Web Assistant';
+            }
             closeBotModal();
             addMessage(`नमस्ते! मैं ${botName} हूँ। 🙏`, false);
         }
