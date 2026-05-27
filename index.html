@@ -494,17 +494,22 @@
         
         async function sendImageForAnalysis() {
     if (!pendingImageFile) return false;
+    
     const userQuestion = userInput.value.trim();
     if (!userQuestion) {
         addMessage('❌ कृपया सवाल लिखें।', false);
         return false;
     }
+    
     addMessage(userQuestion, true);
     userInput.value = '';
     showTyping(true);
     
+    // ✅ Compress image before upload
+    const compressedFile = await compressImage(pendingImageFile);
+    
     const formData = new FormData();
-    formData.append('image', pendingImageFile);
+    formData.append('image', compressedFile);
     formData.append('message', userQuestion);
     formData.append('bot', currentBot);
     formData.append('sessionId', sessionId);
@@ -512,16 +517,18 @@
     try {
         const response = await fetch(API_URL + '/api/analyze-image', {
             method: 'POST',
-            headers: {
-                'Expect': '100-continue'  // ✅ Add this header
-            },
             body: formData
+            // ❌ Don't set Content-Type header - browser handles it
         });
         
-        if (!response.ok) throw new Error(`Server responded with ${response.status}`);
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Server error:', response.status, errorText);
+            throw new Error(`Server responded with ${response.status}`);
+        }
+        
         const data = await response.json();
         showTyping(false);
-        console.log('Analysis response:', data);
         
         if (data.analysis && data.analysis !== '✅ विश्लेषण पूरा हुआ!') {
             addMessage(data.analysis, false);
@@ -530,9 +537,11 @@
         } else {
             addMessage('❌ विश्लेषण विफल रहा। कृपया पुनः प्रयास करें।', false);
         }
+        
         pendingImageFile = null;
         userInput.placeholder = "अपना सवाल लिखें...";
         return true;
+        
     } catch (error) {
         showTyping(false);
         console.error('Analysis error:', error);
@@ -541,6 +550,49 @@
     }
 }
 
+// ✅ Add image compression function
+async function compressImage(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target.result;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                // Resize to max 800px width/height
+                let width = img.width;
+                let height = img.height;
+                const maxSize = 800;
+                
+                if (width > height && width > maxSize) {
+                    height = (height * maxSize) / width;
+                    width = maxSize;
+                } else if (height > maxSize) {
+                    width = (width * maxSize) / height;
+                    height = maxSize;
+                }
+                
+                canvas.width = width;
+                canvas.height = height;
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                canvas.toBlob((blob) => {
+                    const compressedFile = new File([blob], file.name, {
+                        type: 'image/jpeg',
+                        lastModified: Date.now()
+                    });
+                    console.log(`Compressed: ${(file.size / 1024).toFixed(2)}KB → ${(blob.size / 1024).toFixed(2)}KB`);
+                    resolve(compressedFile);
+                }, 'image/jpeg', 0.7);
+            };
+            img.onerror = reject;
+        };
+        reader.onerror = reject;
+    });
+}
         // ========== CHAT MESSAGE ==========
         async function sendMessage() {
             if (pendingImageFile) { await sendImageForAnalysis(); return; }
