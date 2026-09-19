@@ -315,7 +315,11 @@
         function speakText(text) {
             if (!autoSpeak || !text) return;
             try {
-                const utterance = new SpeechSynthesisUtterance(text);
+                // Strip emoji and markdown for web TTS
+                const cleanText = text.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '')
+                                      .replace(/[*#_~`]/g, '');
+                if(cleanText.trim().length === 0) return;
+                const utterance = new SpeechSynthesisUtterance(cleanText);
                 utterance.lang = 'hi-IN';
                 utterance.rate = 0.9;
                 window.speechSynthesis.cancel();
@@ -330,18 +334,18 @@
         // ========== BACKEND API CALL ==========
         async function callBackendAPI(message) {
             console.log("📡 Calling Firebase backend...");
-            
-            let endpoint = '/chat';
-            if (currentBot === 'SahcharAssistant') endpoint = '/chat-assistant';
-            else if (currentBot === 'SuperSahchar') endpoint = '/chat-nvidia';
-            
+
             try {
-                const response = await fetch(`${FIREBASE_URL}${endpoint}`, {
+                // Ensure auth header is passed
+                const response = await fetch(`${FIREBASE_URL}/chat`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-app-auth': 'sahchar-app-client-secure-2026'
+                    },
                     body: JSON.stringify({ 
                         message: message, 
-                        sessionId: localStorage.getItem('session_id') || 'web_user',
+                        sessionId: localStorage.getItem('session_id') || 'web_user_' + Math.floor(Math.random()*1000),
                         bot: currentBot 
                     })
                 });
@@ -435,9 +439,12 @@
             
             try {
                 // Call Firebase backend for image generation
-                const response = await fetch(`${FIREBASE_URL}/image`, {
+                const response = await fetch(`${FIREBASE_URL}/image/generate`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-app-auth': 'sahchar-app-client-secure-2026'
+                    },
                     body: JSON.stringify({ prompt: prompt, bot: currentBot })
                 });
                 
@@ -471,9 +478,12 @@
             showTyping(true);
             
             try {
-                const response = await fetch(`${FIREBASE_URL}/video`, {
+                const response = await fetch(`${FIREBASE_URL}/video/generate`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-app-auth': 'sahchar-app-client-secure-2026'
+                    },
                     body: JSON.stringify({ prompt: prompt, bot: currentBot })
                 });
                 
