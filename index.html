@@ -2,12 +2,12 @@
 <html lang="hi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>SahcharAI - Web Assistant with Voice</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SahcharAI - Gemini Web Assistant</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', sans-serif;
+            font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             display: flex;
@@ -33,21 +33,13 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            flex-wrap: wrap;
-            gap: 10px;
         }
-        .header-title { display: flex; align-items: center; gap: 10px; }
         .header-title h1 { font-size: 1.3rem; }
-        .header-title p { font-size: 0.7rem; opacity: 0.9; }
         .bot-selector {
             background: rgba(255,255,255,0.2);
             padding: 6px 12px;
             border-radius: 20px;
-            font-size: 0.8rem;
             cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 5px;
         }
         .speaker-btn {
             background: rgba(255,255,255,0.2);
@@ -57,11 +49,8 @@
             height: 32px;
             cursor: pointer;
             font-size: 1.2rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            margin-right: 8px;
         }
-        .speaker-btn.active { background: #4caf50; }
         .messages {
             flex: 1;
             overflow-y: auto;
@@ -77,23 +66,20 @@
             border-radius: 20px;
             line-height: 1.4;
             word-wrap: break-word;
-            position: relative;
         }
-        .user-message { background: #667eea; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
-        .bot-message { background: white; color: #333; align-self: flex-start; border-bottom-left-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-        .speak-icon {
-            position: absolute;
-            bottom: 4px;
-            right: 8px;
-            font-size: 0.7rem;
-            cursor: pointer;
-            opacity: 0.5;
-            transition: opacity 0.2s;
+        .user-message {
+            background: #667eea;
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
         }
-        .speak-icon:hover { opacity: 1; }
-        .image-message { max-width: 250px; max-height: 250px; border-radius: 12px; cursor: pointer; margin: 5px 0; }
-        .image-preview { max-width: 150px; max-height: 150px; border-radius: 12px; margin-top: 8px; cursor: pointer; }
-        .video-message { max-width: 280px; border-radius: 12px; margin: 5px 0; cursor: pointer; }
+        .bot-message {
+            background: white;
+            color: #333;
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
         .typing-indicator {
             background: white;
             padding: 12px 16px;
@@ -108,18 +94,15 @@
             background: #999;
             border-radius: 50%;
             display: inline-block;
-            animation: bounce 1.4s infinite ease-in-out;
+            animation: bounce 1.4s infinite;
         }
         @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-10px); } }
         .input-area {
-            display: flex;
             padding: 12px;
             background: white;
             border-top: 1px solid #e0e0e0;
-            gap: 8px;
-            flex-wrap: wrap;
         }
-        .input-row { display: flex; width: 100%; gap: 8px; }
+        .input-row { display: flex; gap: 8px; }
         .input-row input {
             flex: 1;
             padding: 12px 16px;
@@ -128,7 +111,6 @@
             font-size: 1rem;
             outline: none;
         }
-        .input-row input:focus { border-color: #667eea; }
         .btn-send {
             background: #667eea;
             color: white;
@@ -136,11 +118,13 @@
             padding: 12px 20px;
             border-radius: 28px;
             cursor: pointer;
+            font-size: 1rem;
         }
         .action-buttons {
             display: flex;
             gap: 8px;
             justify-content: center;
+            margin-top: 10px;
             flex-wrap: wrap;
         }
         .action-btn {
@@ -148,19 +132,20 @@
             border: none;
             padding: 8px 16px;
             border-radius: 20px;
-            font-size: 0.8rem;
             cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 5px;
+            font-size: 0.8rem;
         }
-        .action-btn:hover { background: #e0e0e0; }
         .mic-btn { background: #4a148c; color: white; }
-        .mic-btn:hover { background: #6a1b9a; }
         .mic-btn.listening { background: #4caf50; animation: pulse 1s infinite; }
-        .video-btn { background: #ff5722; color: white; }
-        .video-btn:hover { background: #e64a19; }
         @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+        .footer {
+            text-align: center;
+            padding: 8px;
+            font-size: 0.65rem;
+            color: #888;
+            background: white;
+            border-top: 1px solid #eee;
+        }
         .modal {
             display: none;
             position: fixed;
@@ -180,7 +165,7 @@
             width: 90%;
             max-width: 400px;
         }
-        .modal-content input, .modal-content textarea {
+        .modal-content input {
             width: 100%;
             padding: 12px;
             margin: 10px 0;
@@ -188,26 +173,28 @@
             border-radius: 12px;
         }
         .modal-buttons { display: flex; gap: 10px; justify-content: flex-end; margin-top: 15px; }
-        .modal-buttons button {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 20px;
-            cursor: pointer;
-        }
+        .modal-buttons button { padding: 8px 16px; border-radius: 20px; cursor: pointer; border: none; }
         .modal-buttons button:first-child { background: #667eea; color: white; }
         .modal-buttons button:last-child { background: #ccc; }
-        .modal-buttons button:only-child { background: #667eea; color: white; }
-        .footer {
-            text-align: center;
-            padding: 8px;
-            font-size: 0.65rem;
-            color: #888;
-            background: white;
-            border-top: 1px solid #eee;
+        button {
+            cursor: pointer;
         }
-        @media (max-width: 500px) {
-            .chat-header { flex-direction: column; text-align: center; }
-            .message { max-width: 90%; }
+        .error-message {
+            background: #ffebee;
+            color: #c62828;
+            padding: 10px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            margin: 5px;
+        }
+        .image-container {
+            max-width: 100%;
+            margin-top: 8px;
+        }
+        .image-container img {
+            max-width: 200px;
+            border-radius: 12px;
+            cursor: pointer;
         }
     </style>
 </head>
@@ -216,13 +203,10 @@
         <div class="chat-header">
             <div class="header-title">
                 <h1>🤖 SahcharAI</h1>
-                <p>वेब असिस्टेंट</p>
             </div>
-            <div style="display: flex; gap: 10px;">
-                <button class="speaker-btn" id="globalSpeaker" onclick="toggleAutoSpeak()" title="ऑटो बोलें">🔊</button>
-                <div class="bot-selector" id="botSelector">
-                    <span>🤖</span> SahcharAI <span>▼</span>
-                </div>
+            <div>
+                <button class="speaker-btn" id="globalSpeaker" onclick="toggleAutoSpeak()">🔊</button>
+                <span class="bot-selector" id="botSelector" onclick="showBotSelector()">🤖 SahcharAI ▼</span>
             </div>
         </div>
 
@@ -235,38 +219,33 @@
         <div class="input-area">
             <div class="input-row">
                 <input type="text" id="userInput" placeholder="अपना सवाल लिखें..." onkeypress="handleKeyPress(event)">
-                <button class="btn-send" onclick="sendMessage()">भेजें</button>
+                <button class="btn-send" id="sendButton" onclick="sendMessage()">भेजें</button>
             </div>
             <div class="action-buttons">
                 <button class="action-btn mic-btn" id="micBtn" onclick="startVoiceInput()">🎤 बोलें</button>
                 <button class="action-btn" onclick="showImageGenModal()">🎨 इमेज बनाएं</button>
-                <button class="action-btn video-btn" onclick="showVideoGenModal()">🎬 वीडियो बनाएं</button>
-                <button class="action-btn" id="photoAnalysisBtn" onclick="selectImageForAnalysis()">📷 फोटो विश्लेषण</button>
-                <input type="file" id="imageUpload" accept="image/*" style="display:none">
+                <button class="action-btn" onclick="showVideoGenModal()" style="background:#ff5722;color:white">🎬 वीडियो</button>
             </div>
         </div>
-
-        <div class="footer">
-            राम प्रकाश कुमार द्वारा निर्मित | 🔊 बोलने के लिए टेक्स्ट पर क्लिक करें
-        </div>
+        <div class="footer">राम प्रकाश कुमार द्वारा निर्मित | Firebase AI द्वारा संचालित</div>
     </div>
 
-    <!-- Bot Selection Modal -->
+    <!-- Bot Modal -->
     <div class="modal" id="botModal">
         <div class="modal-content">
             <h3>बॉट चुनें</h3>
-            <button class="action-btn" style="width:100%; margin:5px 0" onclick="switchBot('SahcharAI')">🤖 SahcharAI</button>
-            <button class="action-btn" style="width:100%; margin:5px 0" onclick="switchBot('SahcharAssistant')">👨‍💼 SahcharAssistant</button>
-            <button class="action-btn" style="width:100%; margin:5px 0" onclick="switchBot('SuperSahchar')">⭐ SuperSahchar</button>
+            <button style="width:100%; margin:5px 0; padding:10px; border:none; border-radius:20px;" onclick="switchBot('SahcharAI')">🤖 SahcharAI</button>
+            <button style="width:100%; margin:5px 0; padding:10px; border:none; border-radius:20px;" onclick="switchBot('SahcharAssistant')">👨‍💼 SahcharAssistant</button>
+            <button style="width:100%; margin:5px 0; padding:10px; border:none; border-radius:20px;" onclick="switchBot('SuperSahchar')">⭐ SuperSahchar</button>
             <div class="modal-buttons"><button onclick="closeBotModal()">बंद करें</button></div>
         </div>
     </div>
 
-    <!-- Image Generation Modal -->
+    <!-- Image Modal -->
     <div class="modal" id="imageModal">
         <div class="modal-content">
             <h3>🎨 इमेज बनाएं</h3>
-            <input type="text" id="imagePrompt" placeholder="तस्वीर का विवरण लिखें... (हिंदी में भी लिख सकते हैं)">
+            <input type="text" id="imagePrompt" placeholder="तस्वीर का विवरण लिखें...">
             <div class="modal-buttons">
                 <button onclick="generateImage()">बनाएं</button>
                 <button onclick="closeImageModal()">रद्द करें</button>
@@ -274,10 +253,10 @@
         </div>
     </div>
 
-    <!-- Video Generation Modal -->
+    <!-- Video Modal -->
     <div class="modal" id="videoModal">
         <div class="modal-content">
-            <h3>🎬 वीडियो बनाएं (डेमो)</h3>
+            <h3>🎬 वीडियो बनाएं</h3>
             <input type="text" id="videoPrompt" placeholder="वीडियो का विवरण लिखें...">
             <div class="modal-buttons">
                 <button onclick="generateVideo()">बनाएं</button>
@@ -287,386 +266,290 @@
     </div>
 
     <script>
-        // ========== CONFIGURATION ==========
-        const API_URL = 'https://api-5n6fh3d24a-uc.a.run.app';
+        // ========== ✅ FIXED: FIREBASE BACKEND URL (WORKING) ==========
+        const FIREBASE_URL = 'https://api-5n6fh3d24a-uc.a.run.app';
         
+        // ========== APP STATE ==========
         let currentBot = 'SahcharAI';
-        let sessionId = localStorage.getItem('session_id');
-        if (!sessionId) {
-            sessionId = crypto.randomUUID();
-            localStorage.setItem('session_id', sessionId);
-        }
-        
         let autoSpeak = true;
-        let speechSynthesis = window.speechSynthesis;
-        let currentUtterance = null;
-        let pendingImageFile = null;
-        let isRecognizing = false;
-        const API_TIMEOUT = 60000;
-
+        
+        // ========== DOM ELEMENTS ==========
         const messagesDiv = document.getElementById('messages');
         const userInput = document.getElementById('userInput');
         const typingDiv = document.getElementById('typing');
-
-        async function fetchWithTimeout(url, options, timeout = API_TIMEOUT) {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), timeout);
+        const sendButton = document.getElementById('sendButton');
+        
+        // ========== HELPER FUNCTIONS ==========
+        function addMessage(text, isUser, isImage = false, imageUrl = null) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+            
+            if (isImage && imageUrl) {
+                msgDiv.textContent = text;
+                const img = document.createElement('img');
+                img.src = imageUrl;
+                img.style.maxWidth = '200px';
+                img.style.borderRadius = '12px';
+                img.style.marginTop = '8px';
+                img.style.cursor = 'pointer';
+                img.onclick = () => window.open(imageUrl, '_blank');
+                msgDiv.appendChild(img);
+            } else {
+                msgDiv.textContent = text;
+            }
+            
+            messagesDiv.appendChild(msgDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            
+            if (!isUser && autoSpeak) speakText(text);
+        }
+        
+        function addError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.textContent = '❌ ' + message;
+            messagesDiv.appendChild(errorDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        function speakText(text) {
+            if (!autoSpeak || !text) return;
             try {
-                const response = await fetch(url, { ...options, signal: controller.signal });
-                clearTimeout(timeoutId);
-                return response;
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'hi-IN';
+                utterance.rate = 0.9;
+                window.speechSynthesis.cancel();
+                window.speechSynthesis.speak(utterance);
+            } catch(e) { console.error("Speech error:", e); }
+        }
+        
+        function showTyping(show) {
+            typingDiv.style.display = show ? 'flex' : 'none';
+        }
+        
+        // ========== BACKEND API CALL ==========
+        async function callBackendAPI(message) {
+            console.log("📡 Calling Firebase backend...");
+            
+            let endpoint = '/chat';
+            if (currentBot === 'SahcharAssistant') endpoint = '/chat-assistant';
+            else if (currentBot === 'SuperSahchar') endpoint = '/chat-nvidia';
+            
+            try {
+                const response = await fetch(`${FIREBASE_URL}${endpoint}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        message: message, 
+                        sessionId: localStorage.getItem('session_id') || 'web_user',
+                        bot: currentBot 
+                    })
+                });
+                
+                const data = await response.json();
+                console.log("✅ Backend response:", data);
+                
+                return data.reply || data.message || "क्षमा करें, उत्तर नहीं मिला।";
             } catch (error) {
-                clearTimeout(timeoutId);
-                if (error.name === 'AbortError') throw new Error('Request timeout. Please try again.');
-                throw error;
+                console.error("❌ Backend error:", error);
+                return null;
             }
         }
-
-        // ========== TEXT TO SPEECH ==========
-        function speakText(text) {
-            if (!autoSpeak) return;
-            if (!text || text.length === 0) return;
-            if (text.startsWith('IMAGE_URL:') || text.startsWith('VIDEO_URL:') || 
-                text.includes('✅') || text.includes('🎨') || text.includes('🎬')) return;
-            
-            let cleanText = text.replace(/[^\u0900-\u097F\sa-zA-Z0-9,।?.!]/g, '');
-            cleanText = cleanText.replace(/\*/g, '').trim();
-            if (cleanText.length === 0) return;
-            
-            if (currentUtterance) { try { speechSynthesis.cancel(); } catch(e) {} currentUtterance = null; }
-            currentUtterance = new SpeechSynthesisUtterance(cleanText);
-            currentUtterance.lang = 'hi-IN';
-            currentUtterance.rate = 0.9;
-            currentUtterance.pitch = 1.0;
-            try { speechSynthesis.speak(currentUtterance); } catch(e) {}
-        }
         
-        function toggleAutoSpeak() {
-            autoSpeak = !autoSpeak;
-            const btn = document.getElementById('globalSpeaker');
-            btn.innerHTML = autoSpeak ? '🔊' : '🔇';
-            btn.style.background = autoSpeak ? '#4caf50' : 'rgba(255,255,255,0.2)';
-        }
+        // ========== SEND MESSAGE ==========
+        window.sendMessage = async function() {
+            const text = userInput.value.trim();
+            if (!text) return;
+            
+            console.log("📤 Sending message:", text);
+            addMessage(text, true);
+            userInput.value = '';
+            showTyping(true);
+            
+            const backendReply = await callBackendAPI(text);
+            
+            if (backendReply) {
+                showTyping(false);
+                addMessage(backendReply, false);
+            } else {
+                showTyping(false);
+                addError("सर्वर से कनेक्ट नहीं हो पाया। कृपया पुनः प्रयास करें।");
+            }
+        };
         
-        function speakSpecificMessage(text) {
-            const oldAutoSpeak = autoSpeak;
-            autoSpeak = true;
-            speakText(text);
-            autoSpeak = oldAutoSpeak;
-        }
-
+        window.handleKeyPress = function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                sendMessage();
+            }
+        };
+        
         // ========== VOICE INPUT ==========
         let recognition = null;
-        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            recognition = new SpeechRecognition();
+        if ('webkitSpeechRecognition' in window) {
+            recognition = new webkitSpeechRecognition();
             recognition.lang = 'hi-IN';
             recognition.continuous = false;
             recognition.interimResults = false;
             recognition.onstart = () => {
-                isRecognizing = true;
                 const micBtn = document.getElementById('micBtn');
                 micBtn.innerHTML = '🎤 सुन रहा हूँ...';
                 micBtn.classList.add('listening');
             };
             recognition.onresult = (event) => {
                 const transcript = event.results[0][0].transcript;
-                if (transcript && transcript.trim().length > 0) {
+                if (transcript) {
                     userInput.value = transcript;
                     sendMessage();
                 }
                 recognition.stop();
             };
-            recognition.onerror = () => {
-                const micBtn = document.getElementById('micBtn');
-                micBtn.innerHTML = '🎤 बोलें';
-                micBtn.classList.remove('listening');
-                isRecognizing = false;
-            };
             recognition.onend = () => {
                 const micBtn = document.getElementById('micBtn');
                 micBtn.innerHTML = '🎤 बोलें';
                 micBtn.classList.remove('listening');
-                isRecognizing = false;
+            };
+            recognition.onerror = () => {
+                const micBtn = document.getElementById('micBtn');
+                micBtn.innerHTML = '🎤 बोलें';
+                micBtn.classList.remove('listening');
             };
         }
         
-        function startVoiceInput() {
+        window.startVoiceInput = function() {
             if (!recognition) { alert('Chrome browser use करें।'); return; }
-            if (isRecognizing) { recognition.stop(); setTimeout(() => recognition.start(), 200); return; }
-            try { userInput.value = ''; recognition.start(); } catch (e) {}
-        }
-
-        // ========== HELPER FUNCTIONS ==========
-        function scrollToBottom() { messagesDiv.scrollTop = messagesDiv.scrollHeight; }
-        function showTyping(show) { typingDiv.style.display = show ? 'flex' : 'none'; scrollToBottom(); }
+            try { recognition.start(); } catch(e) { console.error("Voice error:", e); }
+        };
         
-        function displayImage(imageUrl, container) {
-            const img = document.createElement('img');
-            img.src = imageUrl;
-            img.className = 'image-message';
-            img.onclick = () => window.open(imageUrl, '_blank');
-            img.onerror = () => { img.src = `https://placehold.co/1024x1024/4CAF50/white?text=Image+Not+Found`; };
-            container.appendChild(img);
-        }
-        
-        function displayVideo(videoUrl, container) {
-            const video = document.createElement('video');
-            video.src = videoUrl;
-            video.className = 'video-message';
-            video.controls = true;
-            video.style.maxWidth = '100%';
-            video.style.borderRadius = '12px';
-            video.onerror = () => { container.innerHTML += '<div style="color:red">❌ Video failed to load</div>'; };
-            container.appendChild(video);
-        }
-        
-        function addMessage(text, isUser, options = {}) {
-            const msgDiv = document.createElement('div');
-            let isImage = options.isImage || false;
-            let imageUrl = options.imageUrl || null;
-            let isVideo = options.isVideo || false;
-            let videoUrl = options.videoUrl || null;
-            let isImagePreview = options.isImagePreview || false;
-            let previewData = options.previewData || null;
-            
-            if (isImage && imageUrl) {
-                msgDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
-                displayImage(imageUrl, msgDiv);
-            } else if (isVideo && videoUrl) {
-                msgDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
-                displayVideo(videoUrl, msgDiv);
-            } else if (isImagePreview && previewData) {
-                msgDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
-                const img = document.createElement('img');
-                img.src = previewData;
-                img.className = 'image-preview';
-                img.onclick = () => window.open(previewData, '_blank');
-                msgDiv.appendChild(img);
-                const caption = document.createElement('div');
-                caption.style.fontSize = '0.7rem';
-                caption.style.marginTop = '4px';
-                caption.style.opacity = '0.7';
-                caption.textContent = text;
-                msgDiv.appendChild(caption);
-            } else {
-                msgDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
-                msgDiv.textContent = text;
-                if (!isUser && text && !text.startsWith('✅') && !text.startsWith('🎨') && !text.startsWith('🎬')) {
-                    const speakerIcon = document.createElement('span');
-                    speakerIcon.className = 'speak-icon';
-                    speakerIcon.innerHTML = '🔊';
-                    speakerIcon.onclick = (e) => { e.stopPropagation(); speakSpecificMessage(text); };
-                    msgDiv.appendChild(speakerIcon);
-                    if (autoSpeak) setTimeout(() => speakText(text), 100);
-                }
-            }
-            messagesDiv.appendChild(msgDiv);
-            scrollToBottom();
-        }
-
-        // ========== IMAGE ANALYSIS ==========
-        function selectImageForAnalysis() {
-            const fileInput = document.getElementById('imageUpload');
-            fileInput.onchange = function(e) {
-                const file = e.target.files[0];
-                if (file) {
-                    if (file.size > 2 * 1024 * 1024) {
-                        alert('❌ इमेज 2MB से छोटी होनी चाहिए। कृपया कोई और फोटो चुनें।');
-                        return;
-                    }
-                    pendingImageFile = file;
-                    const reader = new FileReader();
-                    reader.onload = function(event) {
-                        addMessage('📷 फोटो चयनित:', true, { isImagePreview: true, previewData: event.target.result });
-                        userInput.focus();
-                        userInput.placeholder = "इस फोटो के बारे में क्या जानना चाहते हैं? लिखें...";
-                        addMessage('✅ फोटो अपलोड हो गई। अब लिखकर भेजें।', false);
-                    };
-                    reader.readAsDataURL(file);
-                }
-                fileInput.value = '';
-            };
-            fileInput.click();
-        }
-        
-        // ✅ Base64 method for image analysis (Fixes 404 error)
-        async function sendImageForAnalysis() {
-            if (!pendingImageFile) return false;
-            
-            const userQuestion = userInput.value.trim();
-            if (!userQuestion) {
-                addMessage('❌ कृपया सवाल लिखें।', false);
-                return false;
-            }
-            
-            addMessage(userQuestion, true);
-            userInput.value = '';
-            showTyping(true);
-            
-            // Convert to base64
-            const reader = new FileReader();
-            reader.readAsDataURL(pendingImageFile);
-            
-            reader.onload = async function() {
-                const base64Image = reader.result.split(',')[1];
-                
-                try {
-                    const response = await fetch(API_URL + '/api/analyze-image-base64', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            image: base64Image,
-                            message: userQuestion,
-                            bot: currentBot,
-                            sessionId: sessionId,
-                            filename: pendingImageFile.name
-                        })
-                    });
-                    
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        console.error('Server error:', response.status, errorText);
-                        throw new Error(`Server responded with ${response.status}`);
-                    }
-                    
-                    const data = await response.json();
-                    showTyping(false);
-                    console.log('Analysis response:', data);
-                    
-                    if (data.analysis && data.analysis !== '✅ विश्लेषण पूरा हुआ!') {
-                        addMessage(data.analysis, false);
-                    } else if (data.error) {
-                        addMessage('❌ ' + data.error, false);
-                    } else {
-                        addMessage('❌ विश्लेषण विफल रहा। कृपया पुनः प्रयास करें।', false);
-                    }
-                    
-                    pendingImageFile = null;
-                    userInput.placeholder = "अपना सवाल लिखें...";
-                } catch (error) {
-                    showTyping(false);
-                    console.error('Analysis error:', error);
-                    addMessage('❌ त्रुटि: ' + error.message, false);
-                }
-            };
-            
-            reader.onerror = function() {
-                showTyping(false);
-                addMessage('❌ इमेज पढ़ने में त्रुटि।', false);
-            };
-            
-            return true;
-        }
-
-        // ========== CHAT MESSAGE ==========
-        async function sendMessage() {
-            if (pendingImageFile) { await sendImageForAnalysis(); return; }
-            const text = userInput.value.trim();
-            if (!text) return;
-            addMessage(text, true);
-            userInput.value = '';
-            showTyping(true);
-            try {
-                let endpoint = currentBot === 'SahcharAssistant' ? '/chat-assistant' : (currentBot === 'SuperSahchar' ? '/chat-nvidia' : '/chat');
-                const response = await fetchWithTimeout(API_URL + endpoint, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-Session-Id': sessionId },
-                    body: JSON.stringify({ message: text, sessionId: sessionId, bot: currentBot })
-                });
-                const data = await response.json();
-                showTyping(false);
-                addMessage(data.reply || data.message || "क्षमा करें, उत्तर नहीं मिला। 🙏", false);
-            } catch (error) {
-                showTyping(false);
-                let errorMsg = error.message.includes('timeout') ? "❌ सर्वर समय पर जवाब नहीं दे रहा।" : "❌ नेटवर्क त्रुटि! पुनः प्रयास करें।";
-                addMessage(errorMsg, false);
-            }
-        }
-        
-        function handleKeyPress(event) { if (event.key === 'Enter') sendMessage(); }
-
         // ========== IMAGE GENERATION ==========
-        function showImageGenModal() { document.getElementById('imageModal').style.display = 'flex'; }
-        function closeImageModal() { document.getElementById('imageModal').style.display = 'none'; }
+        window.showImageGenModal = () => document.getElementById('imageModal').style.display = 'flex';
+        window.closeImageModal = () => document.getElementById('imageModal').style.display = 'none';
         
-        async function generateImage() {
+        window.generateImage = async function() {
             const prompt = document.getElementById('imagePrompt').value.trim();
             if (!prompt) { alert('प्रॉम्प्ट लिखें'); return; }
+            
             closeImageModal();
             addMessage(`🎨 ${prompt}`, true);
             showTyping(true);
+            
             try {
-                const response = await fetchWithTimeout(API_URL + '/api/image/generate', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                // Call Firebase backend for image generation
+                const response = await fetch(`${FIREBASE_URL}/image`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ prompt: prompt, bot: currentBot })
                 });
+                
                 const data = await response.json();
                 showTyping(false);
-                if (data.imageUrl) {
-                    addMessage('✅ ये रही आपकी इमेज:', false);
-                    addMessage('', false, { isImage: true, imageUrl: data.imageUrl });
+                
+                if (data.imageUrl || data.url) {
+                    const imageUrl = data.imageUrl || data.url;
+                    addMessage('✅ ये रही आपकी इमेज:', false, true, imageUrl);
                 } else {
-                    addMessage('❌ इमेज नहीं बन पाई। कृपया पुनः प्रयास करें।', false);
+                    addMessage('❌ इमेज जनरेट नहीं हुई। पुनः प्रयास करें।', false);
                 }
             } catch (error) {
                 showTyping(false);
-                addMessage('❌ त्रुटि: ' + (error.message || 'इमेज नहीं बन पाई।'), false);
+                addMessage('❌ त्रुटि: ' + error.message, false);
             }
+            
             document.getElementById('imagePrompt').value = '';
-        }
-
-        // ========== VIDEO GENERATION ==========
-        function showVideoGenModal() { document.getElementById('videoModal').style.display = 'flex'; }
-        function closeVideoModal() { document.getElementById('videoModal').style.display = 'none'; }
+        };
         
-        async function generateVideo() {
+        // ========== VIDEO GENERATION ==========
+        window.showVideoGenModal = () => document.getElementById('videoModal').style.display = 'flex';
+        window.closeVideoModal = () => document.getElementById('videoModal').style.display = 'none';
+        
+        window.generateVideo = async function() {
             const prompt = document.getElementById('videoPrompt').value.trim();
             if (!prompt) { alert('प्रॉम्प्ट लिखें'); return; }
+            
             closeVideoModal();
             addMessage(`🎬 ${prompt}`, true);
             showTyping(true);
+            
             try {
-                const response = await fetchWithTimeout(API_URL + '/api/video/generate', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                const response = await fetch(`${FIREBASE_URL}/video`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ prompt: prompt, bot: currentBot })
-                }, 90000);
+                });
+                
                 const data = await response.json();
                 showTyping(false);
-                if (data && data.message) addMessage(data.message, false);
-                if (data.videoUrl && data.videoUrl.startsWith('http')) {
-                    addMessage('✅ ये रहा आपका वीडियो:', false);
-                    addMessage('', false, { isVideo: true, videoUrl: data.videoUrl });
+                
+                if (data.videoUrl || data.url) {
+                    const vidUrl = data.videoUrl || data.url;
+                    const story = data.story || '✅ आपका वीडियो तैयार है!';
+                    addMessage(story, false);
+
+                    const linkDiv = document.createElement('div');
+                    linkDiv.className = 'message bot-message';
+                    const a = document.createElement('a');
+                    a.href = vidUrl;
+                    a.target = '_blank';
+                    a.textContent = '🎬 वीडियो देखें (Click Here)';
+                    a.style.color = '#4a148c';
+                    a.style.fontWeight = 'bold';
+                    a.style.textDecoration = 'none';
+                    linkDiv.appendChild(a);
+                    messagesDiv.appendChild(linkDiv);
+                    messagesDiv.scrollTop = messagesDiv.scrollHeight;
                 } else {
-                    addMessage('❌ वीडियो नहीं बन पाई। कृपया पुनः प्रयास करें।', false);
+                    addMessage('❌ वीडियो जनरेट नहीं हो सका। पुनः प्रयास करें।', false);
                 }
             } catch (error) {
                 showTyping(false);
-                let errorMsg = error.message.includes('timeout') ? "⏰ वीडियो बनाने में बहुत समय लग रहा है।" : "❌ वीडियो नहीं बन पाई।";
-                addMessage(errorMsg, false);
+                addMessage('❌ त्रुटि: ' + error.message, false);
             }
+            
             document.getElementById('videoPrompt').value = '';
-        }
-
-        // ========== BOT SWITCHING ==========
-        function showBotSelector() { document.getElementById('botModal').style.display = 'flex'; }
-        function closeBotModal() { document.getElementById('botModal').style.display = 'none'; }
+        };
         
-        function switchBot(botName) {
+        // ========== BOT SWITCHING ==========
+        window.showBotSelector = () => document.getElementById('botModal').style.display = 'flex';
+        window.closeBotModal = () => document.getElementById('botModal').style.display = 'none';
+        
+        window.switchBot = function(botName) {
             currentBot = botName;
-            const botSelector = document.getElementById('botSelector');
-            if (botName === 'SahcharAI') botSelector.innerHTML = '🤖 SahcharAI ▼';
-            else if (botName === 'SahcharAssistant') botSelector.innerHTML = '👨‍💼 SahcharAssistant ▼';
-            else botSelector.innerHTML = '⭐ SuperSahchar ▼';
+            const selector = document.getElementById('botSelector');
+            if (botName === 'SahcharAI') selector.innerHTML = '🤖 SahcharAI ▼';
+            else if (botName === 'SahcharAssistant') selector.innerHTML = '👨‍💼 SahcharAssistant ▼';
+            else selector.innerHTML = '⭐ SuperSahchar ▼';
             closeBotModal();
             addMessage(`नमस्ते! मैं ${botName} हूँ। 🙏`, false);
+        };
+        
+        // ========== SPEAKER TOGGLE ==========
+        window.toggleAutoSpeak = function() {
+            autoSpeak = !autoSpeak;
+            const btn = document.getElementById('globalSpeaker');
+            btn.innerHTML = autoSpeak ? '🔊' : '🔇';
+        };
+        
+        // ========== TEST CONNECTION ==========
+        async function testConnection() {
+            try {
+                const response = await fetch(`${FIREBASE_URL}/health`);
+                const data = await response.json();
+                console.log("✅ Firebase connection successful:", data);
+                addMessage("✅ बैकएंड से कनेक्टेड! अब आप मुझसे बात कर सकते हैं।", false);
+            } catch (error) {
+                console.error("❌ Firebase connection failed:", error);
+                addError("बैकएंड से कनेक्ट नहीं हो पाया। कृपया पुनः प्रयास करें।");
+            }
         }
         
-        document.getElementById('botSelector').onclick = showBotSelector;
+        // ========== INITIALIZE ==========
+        console.log("🚀 App starting...");
+        console.log("🔗 Firebase URL:", FIREBASE_URL);
+        testConnection();
         
-        console.log('🌐 Web Client Ready');
-        console.log('📡 API URL:', API_URL);
-        setTimeout(() => { speakText('नमस्ते'); }, 1000);
+        // Enable input after load
+        userInput.disabled = false;
+        sendButton.disabled = false;
     </script>
 </body>
 </html>
